@@ -2395,11 +2395,10 @@ const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg
 const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 const EMOJI_BUILDERS = {
-  '🐻': () => [                                  // 熊：头 + 圆耳朵 + 嘴巴正下方的圆吻部
-    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
-    part(mkBall(0.26), 1, 1, 1, -0.6, 0.64, -0.06),
-    part(mkBall(0.26), 1, 1, 1, 0.6, 0.64, -0.06),
-    part(mkBall(0.32), 1, 0.72, 0.72, 0, 0.16, 0.6),
+  '🐻': () => [                                  // 熊（青蛙模型）：扁宽头 + 头顶两只圆耳包
+    part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
+    part(mkBall(0.24), 1, 1, 1, -0.34, 0.63, 0.3),
+    part(mkBall(0.24), 1, 1, 1, 0.34, 0.63, 0.3),
   ],
   '🐰': () => [                                  // 兔：饱满圆头 + 两只厚长耳
     part(mkBall(0.84), 1, 1, 0.98, 0, 0, 0),
