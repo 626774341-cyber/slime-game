@@ -2154,9 +2154,19 @@ function updateSlime(dt, t) {
   slimeGroup.updateMatrixWorld(true);
 }
 
+let faceHidden = false;   // 某些变身（如 🦆）不显示史莱姆的五官
 function updateFace(dt, t) {
   const S = slime;
   const dn = dnState.v;
+
+  // 无脸模式：整张脸藏起来（鸭子等形状）
+  if (faceHidden) {
+    eyeL.group.visible = eyeR.group.visible = false;
+    arcL.visible = arcR.visible = false;
+    smile.visible = mouthO.visible = false;
+    cheeks.forEach(c => { c.visible = false; });
+    return;
+  }
 
   // 嘴巴：咀嚼 > 惊讶 > 心情表情
   if (S.chompT > 0) {
@@ -2428,10 +2438,9 @@ const EMOJI_BUILDERS = {
     part(mkBall(0.7), 1.06, 0.78, 1.06, 0, 0.28, 0),
     part(mkBall(0.14), 1, 1, 1, 0, 0.78, 0),
   ],
-  '🦆': () => [                                  // 鸭子：圆头 + 厚扁嘴 + 饱满身子 + 上翘尾巴
+  '🦆': () => [                                  // 鸭子：无脸干净版——圆头 + 饱满身子 + 上翘尾巴 + 小翅膀
     part(mkBall(0.8), 1, 0.88, 0.95, 0, -0.28, 0),
     part(mkBall(0.45), 1, 0.95, 0.95, 0, 0.45, 0.18),
-    part(mkBall(0.24), 1, 0.42, 1.15, 0, 0.36, 0.68),
     part(mkCone(0.18, 0.4, 8), 1, 1, 1, 0, 0.1, -0.72, -0.9),
     part(mkBall(0.16), 1, 0.75, 0.9, -0.7, -0.12, -0.05),
     part(mkBall(0.16), 1, 0.75, 0.9, 0.7, -0.12, -0.05),
@@ -2515,6 +2524,7 @@ function applyEmojiShape(e) {
   const g = buildEmojiGeo(e);
   if (!g) { toast('这个变不出来，换一个试试？'); return; }
   slimeShapeIdx = -1;
+  faceHidden = (e === '🦆');   // 鸭子是无脸干净版
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
@@ -2528,6 +2538,7 @@ function applyEmojiShape(e) {
 function applyShape(i) {
   ensureAudio();
   slimeShapeIdx = i;
+  faceHidden = false;
   const g = getShapeGeo(i);
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
