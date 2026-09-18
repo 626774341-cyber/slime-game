@@ -160,7 +160,7 @@
   <button class="shapeTile" data-emoji="🐢"><span class="ic">🐢</span></button>
   <button class="shapeTile" data-emoji="🥕"><span class="ic">🥕</span></button>
   <button class="shapeTile" data-emoji="🧁"><span class="ic">🧁</span></button>
-  <button class="shapeTile" data-emoji="🐧"><span class="ic">🐧</span></button>
+  <button class="shapeTile" data-emoji="🦆"><span class="ic">🦆</span></button>
   <button class="shapeTile" data-emoji="🌵"><span class="ic">🌵</span></button>
 </div>
 
@@ -2428,11 +2428,13 @@ const EMOJI_BUILDERS = {
     part(mkBall(0.7), 1.06, 0.78, 1.06, 0, 0.28, 0),
     part(mkBall(0.14), 1, 1, 1, 0, 0.78, 0),
   ],
-  '🐧': () => [                                  // 企鹅：蛋形身子 + 两只鳍 + 前伸的小喙
-    part(mkBall(0.8), 0.92, 1, 0.85, 0, 0, 0),
-    part(new THREE.CapsuleGeometry(0.13, 0.5, 6, 12), 1, 1, 1, -0.66, 0.1, 0, 0, 0, 0.25),
-    part(new THREE.CapsuleGeometry(0.13, 0.5, 6, 12), 1, 1, 1, 0.66, 0.1, 0, 0, 0, -0.25),
-    part(mkCone(0.14, 0.34, 8), 1, 1, 1, 0, 0.3, 0.72, Math.PI / 2),
+  '🦆': () => [                                  // 鸭子：圆头 + 厚扁嘴 + 饱满身子 + 上翘尾巴
+    part(mkBall(0.8), 1, 0.88, 0.95, 0, -0.28, 0),
+    part(mkBall(0.45), 1, 0.95, 0.95, 0, 0.45, 0.18),
+    part(mkBall(0.24), 1, 0.42, 1.15, 0, 0.36, 0.68),
+    part(mkCone(0.18, 0.4, 8), 1, 1, 1, 0, 0.1, -0.72, -0.9),
+    part(mkBall(0.16), 1, 0.75, 0.9, -0.7, -0.12, -0.05),
+    part(mkBall(0.16), 1, 0.75, 0.9, 0.7, -0.12, -0.05),
   ],
   '🌵': () => [                                  // 仙人掌：粗主干 + 两根手臂
     part(new THREE.CapsuleGeometry(0.42, 0.9, 6, 14), 1, 1, 1, 0, -0.05, 0),
