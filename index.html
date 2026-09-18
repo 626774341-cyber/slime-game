@@ -99,7 +99,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.1.1 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.1.2 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -282,7 +282,7 @@ function makeTree(s = 1) {
   c3.position.y = 1.75 * s; c3.castShadow = true; g.add(c3);
   return g;
 }
-[[-3.7, -3.4, 1.15], [3.9, -3.1, 0.95], [-4.1, 1.8, 1.0], [4.0, 3.2, 1.25], [-2.2, 4.1, 0.85]]
+[[-0.9, -4.0, 1.15], [3.9, -3.1, 0.95], [-4.1, 1.8, 1.0], [4.0, 3.2, 1.25], [-2.2, 4.1, 0.85]]
   .forEach(([x, z, s]) => {
     const t = makeTree(s);
     t.position.set(x, 0.01, z);
@@ -408,7 +408,7 @@ scene.add(houseLight);
 // 圆形禁区：树冠、小屋。史莱姆 / 宝宝 / 球 / 掉落物都会被推出禁区，
 // 跳跃目标落在禁区内也会自动重定向到最近的合法点
 const OBSTACLES = [
-  { x: -3.7, z: -3.4, r: 0.60 },   // 树 1
+  { x: -0.9, z: -4.0, r: 0.60 },   // 树 1
   { x: 3.9,  z: -3.1, r: 0.52 },   // 树 2
   { x: -4.1, z: 1.8,  r: 0.52 },   // 树 3
   { x: 4.0,  z: 3.2,  r: 0.62 },   // 树 4
@@ -444,6 +444,31 @@ function nearestOutsidePoint(x, z, radius) {
     if (!moved) break;
   }
   return { x: clamp(px, -BOUND + 0.3, BOUND - 0.3), z: clamp(pz, -BOUND + 0.3, BOUND - 0.3) };
+}
+// 线段 (x,z)→(tx,tz) 前进方向上第一处撞到的障碍物：
+// 返回撞点距离（-1 = 一路畅通，0 = 起点已在禁区内 / 紧贴禁区）
+function segmentToObstacle(x, z, tx, tz, radius) {
+  const dx = tx - x, dz = tz - z;
+  const L = Math.hypot(dx, dz) || 1e-6;
+  const ux = dx / L, uz = dz / L;
+  let best = -1;
+  for (const o of OBSTACLES) {
+    const min = o.r + radius;
+    const fx = x - o.x, fz = z - o.z;
+    const c = fx * fx + fz * fz - min * min;
+    if (c < 0) return 0;                      // 起点在禁区内
+    const b = fx * ux + fz * uz;
+    if (b >= 0) continue;                     // 障碍物在身后，撞不上
+    const D = b * b - c;
+    if (D < 0) continue;                      // 射线擦不到
+    const t = -b - Math.sqrt(D);
+    if (t >= 0 && t <= L && (best < 0 || t < best)) best = t;
+  }
+  return best;
+}
+// 两点间直线路径是否畅通（自动觅食 / 摘星 / 追球用：被挡住就换目标，不在树边空磕）
+function pathClear(x, z, tx, tz) {
+  return segmentToObstacle(x, z, tx, tz, 0.55) < 0;
 }
 
 // 天上的云（缓慢漂移）
@@ -1227,7 +1252,14 @@ function computeHopLeg() {
   const dz = H.target.z - slime.pos.z;
   const dist = Math.hypot(dx, dz);
   if (dist < 0.18) { H.done = true; return; }
-  const leg = Math.min(1.15, dist);
+  let leg = Math.min(1.15, dist);
+  // 跳跃路径撞到障碍物就把这一段截短：在树边 / 墙边稳稳停住，
+  // 不再穿过去后被硬推出来（闪现感）
+  const hit = segmentToObstacle(slime.pos.x, slime.pos.z, H.target.x, H.target.z, 0.55);
+  if (hit >= 0 && hit < leg) {
+    leg = Math.max(hit - 0.06, 0.1);
+    if (hit <= 0.18) H.done = true;           // 已经贴着障碍物：原地小磕一下就停
+  }
   H.from.copy(slime.pos);
   H.to.set(slime.pos.x + dx / dist * leg, GROUND_Y, slime.pos.z + dz / dist * leg);
   H.h = 0.5 + 0.3 * (leg / 1.15);
@@ -1242,7 +1274,7 @@ function startHops(target) {
   slime.mode = 'hop';
   const H = slime.hop;
   // 目标点落在障碍物（树 / 小屋）里时，自动重定向到最近的禁区外
-  const safe = nearestOutsidePoint(target.x, target.z, 0.8);
+  const safe = nearestOutsidePoint(target.x, target.z, 0.6);
   H.target.set(clamp(safe.x, -BOUND, BOUND), GROUND_Y, clamp(safe.z, -BOUND, BOUND));
   H.count = clamp(Math.ceil(d / 1.15), 1, 4);
   H.i = 0;
@@ -1973,8 +2005,18 @@ function updateSlime(dt, t) {
         if (iv > 0.4) landFx(iv * 0.6);
       }
     }
-    // 贴地时推出障碍物禁区（树 / 小屋），防止穿模卡住
-    if (S.pos.y < 0.8) pushOutOfObstacles(S.pos, 0.55);
+    // 贴地时推出障碍物禁区（树 / 小屋），并沿"墙面"滑动：
+    // 去掉撞进障碍物的速度分量，只保留切向速度，避免硬推位置造成的闪现感
+    if (S.pos.y < 0.8 && pushOutOfObstacles(S.pos, 0.55)) {
+      for (const o of OBSTACLES) {
+        const nx = S.pos.x - o.x, nz = S.pos.z - o.z;
+        const nd = Math.hypot(nx, nz) || 1e-4;
+        if (nd < o.r + 0.62) {
+          const vn = (S.vel.x * nx + S.vel.z * nz) / (nd * nd);
+          if (vn < 0) { S.vel.x -= vn * nx; S.vel.z -= vn * nz; }
+        }
+      }
+    }
     for (const ax of ['x', 'z']) {              // 边界反弹
       if (Math.abs(S.pos[ax]) > BOUND) {
         S.pos[ax] = Math.sign(S.pos[ax]) * BOUND;
@@ -2176,7 +2218,7 @@ function toggleStarGame() {
     while (!ok && tries < 40) {
       x = (Math.random() * 2 - 1) * (BOUND - 0.7);
       z = (Math.random() * 2 - 1) * (BOUND - 0.7);
-      const safe = nearestOutsidePoint(x, z, 0.5);
+      const safe = nearestOutsidePoint(x, z, 0.65);
       x = safe.x; z = safe.z;
       ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
            starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
@@ -2374,7 +2416,7 @@ function updateGameLogic(dt, t) {
       if (f.eaten || !f.resting) continue;
       const d = Math.hypot(f.pos.x - S.pos.x, f.pos.z - S.pos.z);
       if (d < 0.8) { eatFood(f); break; }
-      if (d < 8 && S.hopCooldown <= 0) {
+      if (d < 8 && S.hopCooldown <= 0 && pathClear(S.pos.x, S.pos.z, f.pos.x, f.pos.z)) {
         S.hopCooldown = 1.2;
         startHops(f.pos);
         break;
@@ -2398,7 +2440,8 @@ function updateGameLogic(dt, t) {
         const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
         if (d < bd) { bd = d; best = st; }
       }
-      if (best && bd > 0.7 && bd < 9) {
+      if (best && bd > 0.7 && bd < 9 &&
+          pathClear(S.pos.x, S.pos.z, best.mesh.position.x, best.mesh.position.z)) {
         S.hopCooldown = 1.0;
         startHops(best.mesh.position);
       }
@@ -2410,7 +2453,8 @@ function updateGameLogic(dt, t) {
       S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
     const hasFood = foods.some(f => !f.eaten && f.resting);
     const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
-    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
+    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0 &&
+        pathClear(S.pos.x, S.pos.z, ball.pos.x, ball.pos.z)) {
       S.hopCooldown = 1.0;
       startHops(ball.pos);
     }
