@@ -111,7 +111,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.5 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.6 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -2379,130 +2379,223 @@ function getShapeGeo(i) {
   shapeCache[i] = g;
   return g;
 }
-// —— Emoji 变身：每个 emoji 都是手工搭的立体果冻模型（v2.4） ——
-// 例：🐷 = 头球 + 前凸的猪鼻子 + 耳朵；🍄 = 半球伞盖 + 小柱子菇柄
-function part(geo, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) {
-  if (sx !== 1 || sy !== 1 || sz !== 1) geo.scale(sx, sy, sz);
-  if (rx) geo.rotateX(rx);
-  if (ry) geo.rotateY(ry);
-  if (rz) geo.rotateZ(rz);
-  geo.translate(x, y, z);
-  return geo;
+// —— Emoji 变身 v2.6：密度场软混合 + 表面网格提取 ——
+// 耳朵、鼻子、身体不再是拼在一起的零件，而是同一个密度场里"长"出来的一个整体：
+// 所有部件做 smooth-min 软混合，从场里提取一张连续丝滑、无缝衔接的果冻表面
+function smin(a, b, k) {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
 }
-const mkBall = (r, seg = 20) => new THREE.SphereGeometry(r, seg, Math.max(10, Math.round(seg * 0.7)));
-const mkCone = (r, h, seg = 5) => new THREE.ConeGeometry(r, h, seg);
-const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg);
-const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-
-const EMOJI_BUILDERS = {
-  '🐱': () => [                                  // 猫：圆头 + 圆润短耳（不挡眼睛）
-    part(mkBall(0.85), 1, 0.95, 0.95, 0, 0, 0),
-    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, -0.52, 0.8, 0, 0, 0.3),
-    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, 0.52, 0.8, 0, 0, -0.3),
+function fieldValue(px, py, pz, pt) {
+  if (pt.t === 's') {                       // 球
+    return Math.hypot(px - pt.x, py - pt.y, pz - pt.z) - pt.r;
+  }
+  if (pt.t === 'e') {                       // 椭球（rot = 绕 z 轴微转）
+    let x = px - pt.x, y = py - pt.y;
+    if (pt.rot) {
+      const c = Math.cos(-pt.rot), s = Math.sin(-pt.rot);
+      const nx = x * c - y * s, ny = x * s + y * c;
+      x = nx; y = ny;
+    }
+    const z = pz - pt.z;
+    const q = Math.sqrt((x / pt.rx) ** 2 + (y / pt.ry) ** 2 + (z / pt.rz) ** 2);
+    return (q - 1) * Math.min(pt.rx, pt.ry, pt.rz);
+  }
+  if (pt.t === 'c') {                       // 胶囊：a→b 线段 + 半径
+    const ax = px - pt.ax, ay = py - pt.ay, az = pz - pt.az;
+    const bx = pt.bx - pt.ax, by = pt.by - pt.ay, bz = pt.bz - pt.az;
+    const bb = bx * bx + by * by + bz * bz;
+    let u = bb > 0 ? (ax * bx + ay * by + az * bz) / bb : 0;
+    u = Math.max(0, Math.min(1, u));
+    return Math.hypot(ax - bx * u, ay - by * u, az - bz * u) - pt.r;
+  }
+  if (pt.t === 'b') {                       // 圆角盒
+    const qx = Math.abs(px - pt.x) - pt.hx, qy = Math.abs(py - pt.y) - pt.hy, qz = Math.abs(pz - pt.z) - pt.hz;
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0))
+         + Math.min(Math.max(qx, Math.max(qy, qz)), 0) - pt.r;
+  }
+  return 1e9;
+}
+function fieldAt(parts, px, py, pz) {
+  let v = fieldValue(px, py, pz, parts[0]);
+  for (let i = 1; i < parts.length; i++) {
+    v = smin(v, fieldValue(px, py, pz, parts[i]), parts[i].k || 0.12);
+  }
+  return v;
+}
+const EMOJI_FIELDS = {
+  '🐱': [                                   // 猫：头 + 两片外倾圆耳，融成一体
+    { t: 'e', x: 0, y: 0, z: 0, rx: 0.88, ry: 0.82, rz: 0.82 },
+    { t: 'e', x: -0.56, y: 0.68, z: 0, rx: 0.2, ry: 0.4, rz: 0.16, rot: 0.35, k: 0.14 },
+    { t: 'e', x: 0.56, y: 0.68, z: 0, rx: 0.2, ry: 0.4, rz: 0.16, rot: -0.35, k: 0.14 },
   ],
-  '🐸': () => [                                  // 青蛙：扁宽头 + 眼睛落在两只凸眼球上
-    part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
-    part(mkBall(0.24), 1, 1, 1, -0.34, 0.63, 0.3),
-    part(mkBall(0.24), 1, 1, 1, 0.34, 0.63, 0.3),
+  '🐸': [                                   // 青蛙：扁宽头 + 头顶两侧鼓起的眼睛
+    { t: 'e', x: 0, y: -0.15, z: 0, rx: 0.95, ry: 0.75, rz: 0.85 },
+    { t: 's', x: -0.36, y: 0.5, z: 0.34, r: 0.26, k: 0.13 },
+    { t: 's', x: 0.36, y: 0.5, z: 0.34, r: 0.26, k: 0.13 },
   ],
-  '🐷': () => [                                  // 猪：头 + 低位前凸猪鼻子（眼睛在鼻子上方）+ 圆耳
-    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
-    part(mkCyl(0.3, 0.32, 0.34, 18), 1, 1, 1, 0, 0.16, 0.74, Math.PI / 2),
-    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, -0.54, 0.72, 0, 0, 0.42),
-    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, 0.54, 0.72, 0, 0, -0.42),
+  '🐷': [                                   // 猪：头 + 融出来的圆猪鼻（眼睛在鼻子上方）+ 圆耳
+    { t: 'e', x: 0, y: 0, z: 0, rx: 0.88, ry: 0.84, rz: 0.82 },
+    { t: 'e', x: 0, y: 0.02, z: 0.72, rx: 0.3, ry: 0.24, rz: 0.26, k: 0.1 },
+    { t: 'e', x: -0.55, y: 0.7, z: -0.05, rx: 0.17, ry: 0.32, rz: 0.13, rot: 0.4, k: 0.13 },
+    { t: 'e', x: 0.55, y: 0.7, z: -0.05, rx: 0.17, ry: 0.32, rz: 0.13, rot: -0.4, k: 0.13 },
   ],
-  '🐻': () => [                                  // 熊：头 + 圆耳朵 + 嘴巴正下方的圆吻部
-    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
-    part(mkBall(0.26), 1, 1, 1, -0.6, 0.64, -0.06),
-    part(mkBall(0.26), 1, 1, 1, 0.6, 0.64, -0.06),
-    part(mkBall(0.32), 1, 0.72, 0.72, 0, 0.16, 0.6),
+  '🐻': [                                   // 熊：头 + 圆耳 + 嘴巴下方的圆吻部
+    { t: 'e', x: 0, y: 0, z: 0, rx: 0.88, ry: 0.84, rz: 0.82 },
+    { t: 's', x: -0.58, y: 0.64, z: -0.05, r: 0.24, k: 0.14 },
+    { t: 's', x: 0.58, y: 0.64, z: -0.05, r: 0.24, k: 0.14 },
+    { t: 'e', x: 0, y: 0.14, z: 0.64, rx: 0.34, ry: 0.26, rz: 0.24, k: 0.1 },
   ],
-  '🐰': () => [                                  // 兔：饱满圆头 + 两只厚长耳
-    part(mkBall(0.84), 1, 1, 0.98, 0, 0, 0),
-    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, -0.28, 0.72, -0.05, 0, 0, 0.12),
-    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, 0.28, 0.72, -0.05, 0, 0, -0.12),
+  '🐰': [                                   // 兔：头 + 两只外撇厚长耳
+    { t: 'e', x: 0, y: 0, z: 0, rx: 0.84, ry: 0.82, rz: 0.8 },
+    { t: 'c', ax: -0.46, ay: 0.3, az: -0.05, bx: -0.58, by: 0.98, bz: -0.05, r: 0.17, k: 0.13 },
+    { t: 'c', ax: 0.46, ay: 0.3, az: -0.05, bx: 0.58, by: 0.98, bz: -0.05, r: 0.17, k: 0.13 },
   ],
-  '🍄': () => [                                  // 蘑菇：厚柱柄（脸在柄上）+ 顶部宽伞盖
-    part(mkCyl(0.5, 0.56, 1.3, 18), 1, 1, 1, 0, -0.02, 0),
-    part(mkBall(0.95), 1, 0.34, 1, 0, 0.88, 0),
+  '🍄': [                                   // 蘑菇：粗柱柄（脸在柄上）+ 顶部宽伞盖，融为一体
+    { t: 'c', ax: 0, ay: -0.62, az: 0, bx: 0, by: 0.5, bz: 0, r: 0.42, k: 0.1 },
+    { t: 'e', x: 0, y: 0.92, z: 0, rx: 0.95, ry: 0.27, rz: 0.95, k: 0.14 },
   ],
-  '🍓': () => [                                  // 草莓：饱满果子 + 叶蒂 + 小梗
-    part(mkBall(0.84), 0.98, 1.06, 0.98, 0, -0.05, 0),
-    part(mkCone(0.52, 0.26, 8), 1, 1, 1, 0, 0.68, 0),
-    part(mkCyl(0.06, 0.06, 0.26, 10), 1, 1, 1, 0, 0.86, 0),
+  '🍓': [                                   // 草莓：饱满果子 + 叶蒂 + 小梗
+    { t: 'e', x: 0, y: -0.1, z: 0, rx: 0.86, ry: 0.9, rz: 0.86 },
+    { t: 'e', x: 0, y: 0.8, z: 0, rx: 0.5, ry: 0.13, rz: 0.5, k: 0.08 },
+    { t: 'c', ax: 0, ay: 0.82, az: 0, bx: 0, by: 1.04, bz: 0, r: 0.06, k: 0.07 },
   ],
-  '🍙': () => [                                  // 饭团：饱满米团 + 底前一片海苔
-    part(mkBall(0.88), 1.06, 0.92, 1, 0, -0.02, 0),
-    part(mkBox(0.6, 0.52, 0.34), 1, 1, 1, 0, -0.5, 0.58),
+  '🍙': [                                   // 饭团：饱满米团 + 底前一片海苔
+    { t: 'e', x: 0, y: -0.02, z: 0, rx: 0.95, ry: 0.82, rz: 0.9 },
+    { t: 'b', x: 0, y: -0.42, z: 0.68, hx: 0.3, hy: 0.28, hz: 0.14, r: 0.06, k: 0.06 },
   ],
 };
+// 拉普拉斯平滑：去掉网格提取的细小台阶，让表面像果冻一样圆
+function laplacianSmooth(pos, index, iterations, alpha) {
+  const nv = pos.length / 3;
+  const acc = new Float32Array(pos.length);
+  const cnt = new Uint32Array(nv);
+  for (let it = 0; it < iterations; it++) {
+    acc.fill(0); cnt.fill(0);
+    for (let i = 0; i < index.length; i += 3) {
+      const a = index[i], b = index[i + 1], c = index[i + 2];
+      const pairs = [a, b, b, a, b, c, c, b, c, a, a, c];
+      for (let j = 0; j < pairs.length; j += 2) {
+        const u = pairs[j], v = pairs[j + 1];
+        acc[u * 3] += pos[v * 3]; acc[u * 3 + 1] += pos[v * 3 + 1]; acc[u * 3 + 2] += pos[v * 3 + 2];
+        cnt[u]++;
+      }
+    }
+    for (let i = 0; i < nv; i++) {
+      if (!cnt[i]) continue;
+      pos[i * 3] += (acc[i * 3] / cnt[i] - pos[i * 3]) * alpha;
+      pos[i * 3 + 1] += (acc[i * 3 + 1] / cnt[i] - pos[i * 3 + 1]) * alpha;
+      pos[i * 3 + 2] += (acc[i * 3 + 2] / cnt[i] - pos[i * 3 + 2]) * alpha;
+    }
+  }
+}
+// 从密度场提取连续表面（Naive Surface Nets）：一个格子一个顶点，天然无缝
+function extractFieldMesh(parts) {
+  const N = 48, B = 1.25, gsize = N + 1, step = (2 * B) / N;
+  const vals = new Float32Array(gsize * gsize * gsize);
+  let vi = 0;
+  for (let iz = 0; iz < gsize; iz++) {
+    const z = -B + iz * step;
+    for (let iy = 0; iy < gsize; iy++) {
+      const y = -B + iy * step;
+      for (let ix = 0; ix < gsize; ix++) {
+        vals[vi++] = fieldAt(parts, -B + ix * step, y, z);
+      }
+    }
+  }
+  const cellOf = new Int32Array(N * N * N).fill(-1);
+  const pos = [];
+  const E12 = [[0, 1], [1, 3], [2, 3], [0, 2], [4, 5], [5, 7], [6, 7], [4, 6], [0, 4], [1, 5], [3, 7], [2, 6]];
+  for (let cz = 0; cz < N; cz++)
+    for (let cy = 0; cy < N; cy++)
+      for (let cx = 0; cx < N; cx++) {
+        let mask = 0;
+        const cv = [];
+        for (let i = 0; i < 8; i++) {
+          const v = vals[((cz + (i >> 2)) * gsize + (cy + ((i >> 1) & 1))) * gsize + (cx + (i & 1))];
+          cv.push(v);
+          if (v < 0) mask |= 1 << i;
+        }
+        if (mask === 0 || mask === 255) continue;
+        let sx = 0, sy = 0, sz = 0, cnt = 0;
+        for (const [a, b] of E12) {
+          const va = cv[a], vb = cv[b];
+          if ((va < 0) === (vb < 0)) continue;
+          const t = va / (va - vb);
+          const ax = cx + (a & 1), ay = cy + ((a >> 1) & 1), az2 = cz + ((a >> 2) & 1);
+          const bx = cx + (b & 1), by = cy + ((b >> 1) & 1), bz2 = cz + ((b >> 2) & 1);
+          sx += -B + (ax + (bx - ax) * t) * step;
+          sy += -B + (ay + (by - ay) * t) * step;
+          sz += -B + (az2 + (bz2 - az2) * t) * step;
+          cnt++;
+        }
+        cellOf[(cz * N + cy) * N + cx] = pos.length / 3;
+        pos.push(sx / cnt, sy / cnt, sz / cnt);
+      }
+  const index = [];
+  const quad = (a, b, c, d) => { if (a >= 0 && b >= 0 && c >= 0 && d >= 0) index.push(a, b, c, a, c, d); };
+  for (let cz = 1; cz < N; cz++)
+    for (let cy = 1; cy < N; cy++)
+      for (let cx = 1; cx < N; cx++) {
+        const v0 = vals[(cz * gsize + cy) * gsize + cx];
+        // x 方向边
+        let e = vals[(cz * gsize + cy) * gsize + (cx + 1)];
+        if ((v0 < 0) !== (e < 0)) {
+          const a = cellOf[(cz * N + cy) * N + cx], b = cellOf[(cz * N + (cy - 1)) * N + cx],
+                c = cellOf[((cz - 1) * N + (cy - 1)) * N + cx], d = cellOf[((cz - 1) * N + cy) * N + cx];
+          if (v0 < 0) quad(a, b, c, d); else quad(d, c, b, a);
+        }
+        // y 方向边
+        e = vals[(cz * gsize + (cy + 1)) * gsize + cx];
+        if ((v0 < 0) !== (e < 0)) {
+          const a = cellOf[(cz * N + cy) * N + cx], b = cellOf[(cz * N + cy) * N + (cx - 1)],
+                c = cellOf[((cz - 1) * N + cy) * N + (cx - 1)], d = cellOf[((cz - 1) * N + cy) * N + cx];
+          if (v0 < 0) quad(a, b, c, d); else quad(d, c, b, a);
+        }
+        // z 方向边
+        e = vals[((cz + 1) * gsize + cy) * gsize + cx];
+        if ((v0 < 0) !== (e < 0)) {
+          const a = cellOf[(cz * N + cy) * N + cx], b = cellOf[(cz * N + cy) * N + (cx - 1)],
+                c = cellOf[(cz * N + (cy - 1)) * N + (cx - 1)], d = cellOf[(cz * N + (cy - 1)) * N + cx];
+          if (v0 < 0) quad(a, b, c, d); else quad(d, c, b, a);
+        }
+      }
+  // 统一每个四边形的朝向：密度场梯度指向外，法线必须与梯度同向
+  const ep = step * 0.5;
+  for (let i = 0; i < index.length; i += 6) {
+    const a = index[i], b = index[i + 1], c = index[i + 2], d = index[i + 5];
+    const qc = (pos[a * 3] + pos[c * 3]) / 2, qc2 = (pos[a * 3 + 1] + pos[c * 3 + 1]) / 2, qc3 = (pos[a * 3 + 2] + pos[c * 3 + 2]) / 2;
+    const gx = fieldAt(parts, qc + ep, qc2, qc3) - fieldAt(parts, qc - ep, qc2, qc3);
+    const gy = fieldAt(parts, qc, qc2 + ep, qc3) - fieldAt(parts, qc, qc2 - ep, qc3);
+    const gz = fieldAt(parts, qc, qc2, qc3 + ep) - fieldAt(parts, qc, qc2, qc3 - ep);
+    const s1x = pos[c * 3] - pos[a * 3], s1y = pos[c * 3 + 1] - pos[a * 3 + 1], s1z = pos[c * 3 + 2] - pos[a * 3 + 2];
+    const s2x = pos[d * 3] - pos[b * 3], s2y = pos[d * 3 + 1] - pos[b * 3 + 1], s2z = pos[d * 3 + 2] - pos[b * 3 + 2];
+    const nx2 = s1y * s2z - s1z * s2y, ny2 = s1z * s2x - s1x * s2z, nz2 = s1x * s2y - s1y * s2x;
+    if (nx2 * gx + ny2 * gy + nz2 * gz < 0) {
+      index[i + 1] = c; index[i + 2] = b;
+      index[i + 3] = a; index[i + 4] = d; index[i + 5] = c;
+    }
+  }
+  laplacianSmooth(pos, index, 3, 0.5);
+  return { pos, index };
+}
+// —— THREE 组装 ——
 function buildEmojiGeo(e) {
-  const b = EMOJI_BUILDERS[e];
-  if (!b) return null;
-  const parts = b();
-  let g = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+  const parts = EMOJI_FIELDS[e];
+  if (!parts) return null;
+  const { pos, index } = extractFieldMesh(parts);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
   g.center();
   g.computeBoundingBox();
   const bb = g.boundingBox;
   const big = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z);
-  if (big > 1.95) g.scale(1.95 / big, 1.95 / big, 1.95 / big);   // 兜底：别比史莱姆本体大太多
+  if (big > 1.95) g.scale(1.95 / big, 1.95 / big, 1.95 / big);   // 别比史莱姆本体大太多
   g.computeBoundingBox();
-  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);              // 底部贴地，和史莱姆一样
-  // 焊接顶点 + 重算法线：抖动时每个零件都是完整表面，不会裂开
-  g.deleteAttribute('uv');
-  g.deleteAttribute('normal');
-  g = mergeVertices(g, 1e-4);
+  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);              // 底部贴地
   g.computeVertexNormals();
   return g;
-}
-// —— 五官贴面：换形状后把眼睛 / 嘴 / 腮红重新贴到新形状的表面 ——
-// 在五官原本的 (x, y) 处向 -z 打射线找表面落点；那一档找不到就往下再找
-// （比如甜甜圈的眼睛会自动落到环面顶部）；实在找不到的腮红先藏起来。
-const faceRay = new THREE.Raycaster();
-function faceHit(x, y) {
-  for (let yy = y; yy > y - 0.5; yy -= 0.1) {
-    faceRay.set(new THREE.Vector3(x, yy, 5), new THREE.Vector3(0, 0, -1));
-    const hits = faceRay.intersectObject(slimeMesh, false);
-    if (hits.length) return { p: hits[0].point, n: hits[0].face.normal.clone().normalize() };
-  }
-  return null;
-}
-function fitFaceToShape() {
-  // 射线在几何本地空间做：暂时清零史莱姆的位移 / 旋转 / 挤压，完事再还原
-  const gp = slimeGroup.position.clone(), gr = slimeGroup.rotation.clone(), gs = slimeGroup.scale.clone();
-  slimeGroup.position.set(0, 0, 0);
-  slimeGroup.rotation.set(0, 0, 0);
-  slimeGroup.scale.set(1, 1, 1);
-  slimeGroup.updateMatrixWorld(true);
-  [eyeL, eyeR].forEach((eye, i) => {
-    const hit = faceHit(i === 0 ? -0.30 : 0.30, 0.60);
-    if (hit) {
-      eye.group.position.copy(hit.p).addScaledVector(hit.n, 0.02);
-      eye.n.copy(hit.n);
-      eye.right.set(0, 1, 0).cross(eye.n).normalize();
-      eye.up.copy(eye.n).cross(eye.right).normalize();
-    }
-  });
-  arcL.position.copy(eyeL.group.position);
-  arcR.position.copy(eyeR.group.position);
-  const mHit = faceHit(0, 0.40);
-  if (mHit) {
-    smile.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
-    mouthO.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
-    mouthO.position.y -= 0.02;
-  }
-  cheeks.forEach((cheek, i) => {
-    const hit = faceHit(i === 0 ? -0.47 : 0.47, 0.42);
-    cheek.visible = !!hit;
-    if (hit) {
-      cheek.position.copy(hit.p).addScaledVector(hit.n, 0.012);
-      cheek.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hit.n);
-    }
-  });
-  slimeGroup.position.copy(gp);
-  slimeGroup.rotation.copy(gr);
-  slimeGroup.scale.copy(gs);
-  slimeGroup.updateMatrixWorld(true);
 }
 function applyEmojiShape(e) {
   ensureAudio();
