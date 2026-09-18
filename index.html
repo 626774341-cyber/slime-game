@@ -111,7 +111,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.3 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.4 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -2377,165 +2377,76 @@ function getShapeGeo(i) {
   shapeCache[i] = g;
   return g;
 }
-// —— Emoji 变身：把选中的 emoji 变成圆滑的果冻剪影（v2.2 引入，v2.3 并入变身面板） ——
+// —— Emoji 变身：每个 emoji 都是手工搭的立体果冻模型（v2.4） ——
+// 例：🐷 = 头球 + 前凸的猪鼻子 + 耳朵；🍄 = 半球伞盖 + 小柱子菇柄
+function part(geo, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) {
+  if (sx !== 1 || sy !== 1 || sz !== 1) geo.scale(sx, sy, sz);
+  if (rx) geo.rotateX(rx);
+  if (ry) geo.rotateY(ry);
+  if (rz) geo.rotateZ(rz);
+  geo.translate(x, y, z);
+  return geo;
+}
+const mkBall = (r, seg = 20) => new THREE.SphereGeometry(r, seg, Math.max(10, Math.round(seg * 0.7)));
+const mkCone = (r, h, seg = 5) => new THREE.ConeGeometry(r, h, seg);
+const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg);
+const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
-function pointLineDist(p, a, b) {
-  const dx = b.x - a.x, dy = b.y - a.y;
-  const len2 = dx * dx + dy * dy;
-  let t = len2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
-}
-function simplifyPolyline(pts, eps) {
-  if (pts.length < 3) return pts;
-  const keep = new Array(pts.length).fill(false);
-  keep[0] = keep[pts.length - 1] = true;
-  const stack = [[0, pts.length - 1]];
-  while (stack.length) {
-    const [a, b] = stack.pop();
-    let dmax = 0, idx = -1;
-    for (let i = a + 1; i < b; i++) {
-      const d = pointLineDist(pts[i], pts[a], pts[b]);
-      if (d > dmax) { dmax = d; idx = i; }
-    }
-    if (dmax > eps) { keep[idx] = true; stack.push([a, idx], [idx, b]); }
-  }
-  return pts.filter((_, i) => keep[i]);
-}
-function chaikinSmooth(pts, iters) {
-  for (let k = 0; k < iters; k++) {
-    const out = [];
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length];
-      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 },
-               { x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
-    }
-    pts = out;
-  }
-  return pts;
-}
-function signedArea(pts) {
-  let a = 0;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    a += pts[j].x * pts[i].y - pts[i].x * pts[j].y;
-  }
-  return a / 2;
-}
-function pointInPoly(p, poly) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    if ((poly[i].y > p.y) !== (poly[j].y > p.y) &&
-        p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x) inside = !inside;
-  }
-  return inside;
-}
-function dilateMask(src, W, H) {
-  const out = new Uint8Array(src);
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      if (!src[y * W + x] && (src[y * W + x - 1] || src[y * W + x + 1] || src[(y - 1) * W + x] || src[(y + 1) * W + x])) out[y * W + x] = 1;
-    }
-  }
-  return out;
-}
-// 二值图 marching squares：把 emoji 剪影的轮廓线全部提取成闭合环（像素坐标）
-function traceContours(solid, W, H) {
-  // 每个格子 4 角的占位组合 → 边界线段（边编号 0=上 1=右 2=下 3=左）
-  const T = { 1: [[3, 2]], 2: [[1, 2]], 3: [[3, 1]], 4: [[0, 1]], 5: [[0, 1], [2, 3]],
-              6: [[0, 2]], 7: [[0, 3]], 8: [[0, 3]], 9: [[0, 2]], 10: [[0, 3], [1, 2]],
-              11: [[0, 1]], 12: [[3, 1]], 13: [[1, 2]], 14: [[3, 2]] };
-  const mid = (x, y, e) => e === 0 ? { x: x + .5, y } : e === 1 ? { x: x + 1, y: y + .5 } : e === 2 ? { x: x + .5, y: y + 1 } : { x, y: y + .5 };
-  const segs = [];
-  for (let y = 0; y < H - 1; y++) {
-    for (let x = 0; x < W - 1; x++) {
-      const idx = (solid[y * W + x] ? 8 : 0) | (solid[y * W + x + 1] ? 4 : 0) |
-                  (solid[(y + 1) * W + x + 1] ? 2 : 0) | (solid[(y + 1) * W + x] ? 1 : 0);
-      for (const [ea, eb] of (T[idx] || [])) segs.push([mid(x, y, ea), mid(x, y, eb)]);
-    }
-  }
-  // 把零散线段串回闭合环
-  const key = p => p.x + ',' + p.y;
-  const at = new Map();
-  segs.forEach(([a, b], i) => {
-    for (const p of [a, b]) { const k = key(p); if (!at.has(k)) at.set(k, []); at.get(k).push(i); }
-  });
-  const used = new Array(segs.length).fill(false);
-  const loops = [];
-  for (let i = 0; i < segs.length; i++) {
-    if (used[i]) continue;
-    used[i] = true;
-    const loop = [segs[i][0], segs[i][1]];
-    for (;;) {
-      const k = key(loop[loop.length - 1]);
-      const nxt = at.get(k).find(j => !used[j]);
-      if (nxt === undefined) break;
-      used[nxt] = true;
-      const [p, q] = segs[nxt];
-      loop.push(key(p) === k ? q : p);
-    }
-    loop.pop();
-    if (loop.length >= 3) loops.push(loop);
-  }
-  return loops;
-}
-function buildEmojiGeo(emoji) {
-  const N = 120;
-  const cv = document.createElement('canvas');
-  cv.width = N; cv.height = N;
-  let ctx = cv.getContext('2d');
-  ctx.font = '96px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, N / 2, N / 2 + 4);
-  const img = ctx.getImageData(0, 0, N, N).data;
-  let solid = new Uint8Array(N * N);
-  let count = 0;
-  for (let i = 0; i < N * N; i++) {
-    if (img[i * 4 + 3] > 100) { solid[i] = 1; count++; }
-  }
-  if (count < 80) return null;          // 没画出来（环境不支持彩色 emoji 等）
-  solid = dilateMask(solid, N, N);      // 加粗一圈：细笔画也能挤出圆润的边
-  // 轮廓 → 简化 → 平滑 → 再简化：得到圆润曲线
-  const loops = traceContours(solid, N, N)
-    .map(lp => simplifyPolyline(lp.concat([lp[0]]), 1.3).slice(0, -1))
-    .filter(lp => lp.length >= 3)
-    .map(lp => chaikinSmooth(lp, 2))
-    .map(lp => simplifyPolyline(lp.concat([lp[0]]), 0.35).slice(0, -1))
-    .filter(lp => lp.length >= 3);
-  if (!loops.length) return null;
-  // 包围盒 → 映射到世界坐标（宽 ≤ 1.9 / 高 ≤ 1.7，y 翻转向上）
-  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-  for (const lp of loops) for (const p of lp) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-  const s = Math.min(1.9 / (maxX - minX), 1.7 / (maxY - minY), 2.2 / N);
-  const wloops = loops.map(lp => lp.map(p => new THREE.Vector2(
-    (p.x - (minX + maxX) / 2) * s, ((minY + maxY) / 2 - p.y) * s)));
-  // 面积最大的环是外形，被它包含的环是洞（如甜甜圈emoji的中空），其余是独立部件
-  wloops.sort((a, b) => Math.abs(signedArea(b)) - Math.abs(signedArea(a)));
-  const shapes = [];
-  for (const wl of wloops) {
-    const host = shapes.find(o => pointInPoly(wl[0], o.pts));
-    if (host) host.holes.push(wl);
-    else shapes.push({ pts: wl, holes: [] });
-  }
-  const geos = shapes.map(o => {
-    const shape = new THREE.Shape(o.pts);
-    for (const h of o.holes) shape.holes.push(new THREE.Path(h));
-    return new THREE.ExtrudeGeometry(shape, {
-      depth: 0.68, bevelEnabled: true,
-      bevelThickness: 0.2, bevelSize: 0.12, bevelSegments: 3   // 倒角 = 圆滑的果冻边
-    });
-  });
-  if (!geos.length) return null;
-  let g = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+const EMOJI_BUILDERS = {
+  '🐱': () => [                                  // 猫：圆头 + 两只金字塔耳
+    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
+    part(mkCone(0.26, 0.5, 4), 1, 1, 0.55, -0.46, 0.76, 0, 0, 0.32),
+    part(mkCone(0.26, 0.5, 4), 1, 1, 0.55, 0.46, 0.76, 0, 0, -0.32),
+  ],
+  '🐸': () => [                                  // 青蛙：扁头 + 头顶两只凸眼睛
+    part(mkBall(0.85), 1, 0.85, 0.95, 0, -0.1, 0),
+    part(mkBall(0.21), 1, 1, 1, -0.48, 0.58, 0.14),
+    part(mkBall(0.21), 1, 1, 1, 0.48, 0.58, 0.14),
+  ],
+  '🐷': () => [                                  // 猪：头 + 前凸的猪鼻子 + 耳朵
+    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
+    part(mkCyl(0.27, 0.27, 0.3), 1, 1, 1, 0, 0.1, 0.78, Math.PI / 2),
+    part(mkCone(0.2, 0.38, 4), 1, 1, 0.5, -0.5, 0.7, 0, 0, 0.45),
+    part(mkCone(0.2, 0.38, 4), 1, 1, 0.5, 0.5, 0.7, 0, 0, -0.45),
+  ],
+  '🐻': () => [                                  // 熊：头 + 圆耳朵 + 凸出的吻部
+    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
+    part(mkBall(0.24), 1, 1, 1, -0.56, 0.64, -0.04),
+    part(mkBall(0.24), 1, 1, 1, 0.56, 0.64, -0.04),
+    part(mkBall(0.3), 1, 0.75, 0.7, 0, 0.02, 0.62),
+  ],
+  '🐰': () => [                                  // 兔：头 + 两只长耳朵
+    part(mkBall(0.76), 1, 0.92, 0.95, 0, -0.22, 0),
+    part(new THREE.CapsuleGeometry(0.15, 0.55, 4, 12), 1, 1, 1, -0.27, 0.62, -0.02, 0, 0, 0.14),
+    part(new THREE.CapsuleGeometry(0.15, 0.55, 4, 12), 1, 1, 1, 0.27, 0.62, -0.02, 0, 0, -0.14),
+  ],
+  '🍄': () => [                                  // 蘑菇：半球伞盖 + 小柱子菇柄
+    part(mkBall(0.88), 1, 0.62, 1, 0, 0.3, 0),
+    part(mkCyl(0.3, 0.34, 0.62), 1, 1, 1, 0, -0.4, 0),
+  ],
+  '🍓': () => [                                  // 草莓：果子 + 叶蒂 + 小梗
+    part(mkBall(0.8), 0.95, 1.08, 0.95, 0, -0.18, 0),
+    part(mkCone(0.5, 0.22, 6), 1, 1, 1, 0, 0.62, 0),
+    part(mkCyl(0.05, 0.05, 0.24, 8), 1, 1, 1, 0, 0.8, 0),
+  ],
+  '🍙': () => [                                  // 饭团：米团身子 + 底前一片海苔
+    part(mkBall(0.85), 1.08, 0.9, 0.96, 0, -0.05, 0),
+    part(mkBox(0.56, 0.5, 0.3), 1, 1, 1, 0, -0.48, 0.6),
+  ],
+};
+function buildEmojiGeo(e) {
+  const b = EMOJI_BUILDERS[e];
+  if (!b) return null;
+  const parts = b();
+  let g = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
   g.center();
   g.computeBoundingBox();
-  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);   // 底部贴地，与史莱姆一致
-  // 焊接顶点 + 重算法线：果冻抖动时是一个完整表面，不会撕裂
+  const bb = g.boundingBox;
+  const big = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z);
+  if (big > 1.95) g.scale(1.95 / big, 1.95 / big, 1.95 / big);   // 兜底：别比史莱姆本体大太多
+  g.computeBoundingBox();
+  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);              // 底部贴地，和史莱姆一样
+  // 焊接顶点 + 重算法线：抖动时每个零件都是完整表面，不会裂开
   g.deleteAttribute('uv');
   g.deleteAttribute('normal');
   g = mergeVertices(g, 1e-4);
