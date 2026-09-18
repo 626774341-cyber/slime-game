@@ -52,14 +52,18 @@
             cursor: pointer; box-shadow: 0 2px 6px rgba(60,90,140,.25); }
   .swatch:hover { transform: scale(1.15); }
   .swatch.rainbow { background: conic-gradient(#ff6b6b,#ffb56b,#ffe45e,#6bde7c,#5ec8ff,#b78aff,#ff6bd8,#ff6b6b); }
-  /* Emoji 变身面板 */
-  #emojiPanel { position: fixed; right: 72px; bottom: 170px; padding: 10px; display: none;
-                flex-wrap: wrap; gap: 6px; z-index: 7; max-width: 306px; }
-  #emojiPanel.open { display: flex; }
-  .empick { width: 42px; height: 42px; font-size: 26px; border: none; border-radius: 10px;
-            cursor: pointer; background: rgba(126,200,250,.16); transition: background .15s; }
-  .empick:hover { background: rgba(126,200,250,.5); }
-  .empick:active { transform: scale(.88); }
+  /* 变身面板：经典形状 + Emoji 果冻，一个面板全搞定 */
+  #shapePanel { position: fixed; right: 72px; bottom: 120px; padding: 12px; display: none;
+                flex-wrap: wrap; gap: 8px; z-index: 7; max-width: 312px; }
+  #shapePanel.open { display: flex; }
+  #shapePanel .sp-head { width: 100%; font-size: 11px; color: #5b7c99; padding: 2px 2px 0; }
+  .shapeTile { width: 60px; border: none; border-radius: 12px; cursor: pointer;
+               background: rgba(126,200,250,.16); padding: 8px 0 6px; text-align: center;
+               transition: background .15s; }
+  .shapeTile:hover { background: rgba(126,200,250,.5); }
+  .shapeTile:active { transform: scale(.92); }
+  .shapeTile .ic { font-size: 26px; display: block; }
+  .shapeTile .lb { font-size: 10px; color: #2c4a66; margin-top: 3px; display: block; }
   /* 心情条 */
   #moodCard { bottom: 16px; left: 18px; padding: 10px 14px; display: flex; align-items: center;
               gap: 8px; animation: riseUp .8s .45s ease both; }
@@ -107,7 +111,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.2 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.3 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -143,25 +147,26 @@
   <div class="swatch rainbow" data-i="6" title="彩虹模式"></div>
 </div>
 
-<div id="emojiPanel" class="card">
-  <button class="empick" data-e="🐱">🐱</button>
-  <button class="empick" data-e="🐶">🐶</button>
-  <button class="empick" data-e="🐸">🐸</button>
-  <button class="empick" data-e="🌟">🌟</button>
-  <button class="empick" data-e="⭐">⭐</button>
-  <button class="empick" data-e="❤️">❤️</button>
-  <button class="empick" data-e="🍎">🍎</button>
-  <button class="empick" data-e="🍩">🍩</button>
-  <button class="empick" data-e="🌸">🌸</button>
-  <button class="empick" data-e="🌈">🌈</button>
-  <button class="empick" data-e="🔥">🔥</button>
-  <button class="empick" data-e="🌙">🌙</button>
+<div id="shapePanel" class="card">
+  <div class="sp-head">经典形状</div>
+  <button class="shapeTile" data-shape="0"><span class="ic">⚪</span><span class="lb">圆滚滚</span></button>
+  <button class="shapeTile" data-shape="1"><span class="ic">🟨</span><span class="lb">小方块</span></button>
+  <button class="shapeTile" data-shape="2"><span class="ic">🍩</span><span class="lb">甜甜圈</span></button>
+  <button class="shapeTile" data-shape="3"><span class="ic">🍮</span><span class="lb">布丁</span></button>
+  <div class="sp-head">Emoji 果冻</div>
+  <button class="shapeTile" data-emoji="🐱"><span class="ic">🐱</span></button>
+  <button class="shapeTile" data-emoji="🐸"><span class="ic">🐸</span></button>
+  <button class="shapeTile" data-emoji="🐷"><span class="ic">🐷</span></button>
+  <button class="shapeTile" data-emoji="🐻"><span class="ic">🐻</span></button>
+  <button class="shapeTile" data-emoji="🐰"><span class="ic">🐰</span></button>
+  <button class="shapeTile" data-emoji="🍄"><span class="ic">🍄</span></button>
+  <button class="shapeTile" data-emoji="🍓"><span class="ic">🍓</span></button>
+  <button class="shapeTile" data-emoji="🍙"><span class="ic">🍙</span></button>
 </div>
 
 <div id="toolbar">
   <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
-  <button class="card tool" id="shapeBtn" title="变形药水：换个形状">🧪</button>
-  <button class="card tool" id="textShapeBtn" title="Emoji 变身：变成选中的 emoji 果冻">🎭</button>
+  <button class="card tool" id="shapeBtn" title="变身：经典形状 / Emoji 果冻">🧪</button>
   <button class="card tool" id="plantBtn" title="种花模式：点击地面种花">🌱</button>
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
@@ -2372,9 +2377,7 @@ function getShapeGeo(i) {
   shapeCache[i] = g;
   return g;
 }
-// —— Emoji 变身：把选中的 emoji 变成圆滑的果冻剪影（v2.2） ——
-let customShapeName = null;
-let customShapeGeo = null;
+// —— Emoji 变身：把选中的 emoji 变成圆滑的果冻剪影（v2.2 引入，v2.3 并入变身面板） ——
 
 function pointLineDist(p, a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -2543,33 +2546,28 @@ function applyEmojiShape(e) {
   ensureAudio();
   const g = buildEmojiGeo(e);
   if (!g) { toast('这个变不出来，换一个试试？'); return; }
-  customShapeGeo = g;
-  customShapeName = e;
-  slimeShapeIdx = 4;
+  slimeShapeIdx = -1;
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   spawnSparkles(8);
   say('变——！');
-  toast(e + ' 变身！点 🧪 可轮流切换形状');
+  toast(e + ' 变身！点 🧪 可换其他形状');
   blip(240, 980, 0.22, 0.13);
-  document.getElementById('emojiPanel').classList.remove('open');
+  document.getElementById('shapePanel').classList.remove('open');
 }
-function cycleShape() {
+function applyShape(i) {
   ensureAudio();
-  const list = shapeList();
-  slimeShapeIdx = (slimeShapeIdx + 1) % list.length;
-  const g = slimeShapeIdx < 4 ? getShapeGeo(slimeShapeIdx) : customShapeGeo;
+  slimeShapeIdx = i;
+  const g = getShapeGeo(i);
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   spawnSparkles(6);
   say('变——！');
-  toast('🧪 变成了' + list[slimeShapeIdx]);
-  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
-}
-function shapeList() {
-  return customShapeGeo ? SHAPE_NAMES.concat(['「' + customShapeName + '」']) : SHAPE_NAMES.slice();
+  toast('🧪 变成了' + SHAPE_NAMES[i]);
+  blip(260 + i * 90, 900, 0.18, 0.12);
+  document.getElementById('shapePanel').classList.remove('open');
 }
 
 // —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
@@ -2754,14 +2752,16 @@ document.getElementById('feedBtn').addEventListener('click', spawnFood);
 document.getElementById('chiliBtn').addEventListener('click', spawnChili);
 document.getElementById('ballBtn').addEventListener('click', toggleBall);
 document.getElementById('starBtn').addEventListener('click', toggleStarGame);
-document.getElementById('shapeBtn').addEventListener('click', cycleShape);
-document.getElementById('textShapeBtn').addEventListener('click', () => {
+document.getElementById('shapeBtn').addEventListener('click', () => {
   ensureAudio();
-  document.getElementById('emojiPanel').classList.toggle('open');
+  document.getElementById('shapePanel').classList.toggle('open');
   blip(600, 900, 0.08, 0.08);
 });
-document.querySelectorAll('#emojiPanel .empick').forEach(btn => {
-  btn.addEventListener('click', () => applyEmojiShape(btn.dataset.e));
+document.querySelectorAll('#shapePanel .shapeTile').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.shape !== undefined) applyShape(+btn.dataset.shape);
+    else applyEmojiShape(btn.dataset.emoji);
+  });
 });
 document.getElementById('babyBtn').addEventListener('click', toggleBaby);
 document.getElementById('hatBtn').addEventListener('click', cycleHat);
