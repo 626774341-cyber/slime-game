@@ -17,6 +17,14 @@
 
 手机、平板、电脑浏览器均可游玩，桌面端体验最佳。
 
+## 📋 版本历史
+
+每个版本改了什么、加了什么，都有独立页面可查：
+
+- **更新日志**：[CHANGELOG.md](CHANGELOG.md)
+- **版本发布页（Releases）**：https://github.com/626774341-cyber/slime-game/releases
+- 当前游戏版本：见左上角标题卡（点版本号直达发布页）
+
 ## 技术要点
 
 - Three.js r170（ES Module + importmap，零构建）
