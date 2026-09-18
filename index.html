@@ -99,7 +99,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.1 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.4 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -345,6 +345,30 @@ const matStone = new THREE.MeshStandardMaterial({ color: 0xcfcabc, roughness: 0.
   world.add(s);
 });
 
+// 蹦床蘑菇：踩上去会被弹飞
+const MUSH = { x: -1.6, z: 1.7 };
+{
+  const g = new THREE.Group();
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.32, 12),
+    new THREE.MeshStandardMaterial({ color: 0xf5ead8, roughness: 0.9 }));
+  stem.position.y = 0.16;
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 14),
+    new THREE.MeshStandardMaterial({ color: 0xe05548, roughness: 0.7 }));
+  cap.scale.set(1, 0.55, 1);
+  cap.position.y = 0.44;
+  cap.castShadow = true;
+  g.add(stem, cap);
+  const dotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+  [[-0.24, 0.6, 0.12, 0.07], [0.2, 0.58, -0.14, 0.06], [0.02, 0.64, 0.3, 0.055], [-0.12, 0.56, -0.32, 0.05]]
+    .forEach(([x, y, z, r]) => {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), dotMat);
+      dot.position.set(x, y, z);
+      g.add(dot);
+    });
+  g.position.set(MUSH.x, 0.01, MUSH.z);
+  world.add(g);
+}
+
 // 小木屋（窗户材质提出来，夜晚会亮灯）
 const winMat = new THREE.MeshStandardMaterial({
   color: 0xa8d8ef, roughness: 0.3,
@@ -379,30 +403,6 @@ world.add(house);
 const houseLight = new THREE.PointLight(0xffc766, 0, 7);
 houseLight.position.set(HOUSE_POS.x, 1.4, HOUSE_POS.z);
 scene.add(houseLight);
-
-// 蹦床蘑菇：踩上去会被弹飞
-const MUSH = { x: -1.6, z: 1.7 };
-{
-  const g = new THREE.Group();
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.32, 12),
-    new THREE.MeshStandardMaterial({ color: 0xf5ead8, roughness: 0.9 }));
-  stem.position.y = 0.16;
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 14),
-    new THREE.MeshStandardMaterial({ color: 0xe05548, roughness: 0.7 }));
-  cap.scale.set(1, 0.55, 1);
-  cap.position.y = 0.44;
-  cap.castShadow = true;
-  g.add(stem, cap);
-  const dotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
-  [[-0.24, 0.6, 0.12, 0.07], [0.2, 0.58, -0.14, 0.06], [0.02, 0.64, 0.3, 0.055], [-0.12, 0.56, -0.32, 0.05]]
-    .forEach(([x, y, z, r]) => {
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), dotMat);
-      dot.position.set(x, y, z);
-      g.add(dot);
-    });
-  g.position.set(MUSH.x, 0.01, MUSH.z);
-  world.add(g);
-}
 
 // 天上的云（缓慢漂移）
 const clouds = [];
@@ -557,238 +557,6 @@ function updateWeatherFx(dt, t) {
   if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
 }
 
-/* ================= 第四波：摘星挑战 / 变形 / 成就 / 小鱼 ================= */
-
-// —— 成就系统（localStorage 持久化） ——
-const ACH_DEFS = {
-  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
-  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
-  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
-  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
-  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
-  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
-  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
-  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
-  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
-};
-let achData;
-try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
-achData.unlocked = achData.unlocked || {};
-achData.c = achData.c || {};
-function saveAch() {
-  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
-}
-function achCelebrate(def) {
-  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
-  blip(660, 1320, 0.14, 0.1);
-  blip(880, 1760, 0.16, 0.1, 0.12);
-}
-function achInc(id, add) {
-  const def = ACH_DEFS[id];
-  if (!def || achData.unlocked[id]) return;
-  achData.c[id] = (achData.c[id] || 0) + add;
-  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
-  saveAch();
-  if (achData.unlocked[id]) achCelebrate(def);
-}
-function achUnlockNow(id) {
-  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
-  achData.unlocked[id] = true;
-  saveAch();
-  achCelebrate(ACH_DEFS[id]);
-}
-
-// —— 摘星挑战 ——
-const starShapeGeo = (() => {
-  const s = new THREE.Shape();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 0.17 : 0.075;
-    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
-    const x = Math.cos(a) * r, y = Math.sin(a) * r;
-    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
-  }
-  s.closePath();
-  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
-})();
-const starGame = { active: false, stars: [], collected: 0, total: 5 };
-function toggleStarGame() {
-  ensureAudio();
-  if (starGame.active) {
-    starGame.stars.forEach(s => scene.remove(s.mesh));
-    starGame.stars = [];
-    starGame.active = false;
-    document.getElementById('starHud').classList.remove('show');
-    toast('摘星挑战取消');
-    blip(420, 240, 0.15, 0.08);
-    return;
-  }
-  starGame.active = true;
-  starGame.collected = 0;
-  starGame.stars = [];
-  for (let i = 0; i < starGame.total; i++) {
-    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
-    let x = 0, z = 0, ok = false, tries = 0;
-    while (!ok && tries < 40) {
-      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
-      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
-      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
-           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
-           !inPond(x, z);
-      tries++;
-    }
-    mesh.position.set(x, 0.55, z);
-    scene.add(mesh);
-    starGame.stars.push({ mesh, ph: Math.random() * 6 });
-  }
-  const hud = document.getElementById('starHud');
-  hud.textContent = '⭐ 0 / ' + starGame.total;
-  hud.classList.add('show');
-  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
-  say('摘星星咯！');
-  blip(520, 1040, 0.15, 0.1);
-}
-function collectStar(s) {
-  scene.remove(s.mesh);
-  starGame.collected++;
-  const hud = document.getElementById('starHud');
-  if (starGame.collected >= starGame.total) {
-    starGame.active = false;
-    hud.textContent = '⭐ 全部收集！';
-    setTimeout(() => hud.classList.remove('show'), 1400);
-    mood.happy = Math.min(100, mood.happy + 26);
-    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
-      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
-    for (let k = 0; k < 4; k++) {
-      spawnHeart(new THREE.Vector3(
-        slime.pos.x + (Math.random() - 0.5) * 0.8,
-        slime.pos.y + 1.2 + k * 0.2,
-        slime.pos.z));
-    }
-    toast('⭐ 全部收集完成！史莱姆太棒了！');
-    say('全部拿到啦！');
-    blip(523, 523, 0.12, 0.1);
-    blip(659, 659, 0.12, 0.1, 0.12);
-    blip(784, 784, 0.12, 0.1, 0.24);
-    blip(1047, 1047, 0.25, 0.12, 0.36);
-    achInc('star1', 1);
-  } else {
-    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
-    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
-    blip(880, 1560, 0.12, 0.12);
-    mood.happy = Math.min(100, mood.happy + 4);
-  }
-}
-function updateStarGame(dt, t) {
-  if (!starGame.active) return;
-  for (const s of starGame.stars) {
-    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
-    s.mesh.rotation.y += dt * 1.6;
-  }
-}
-
-// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
-const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
-let slimeShapeIdx = 0;
-const shapeCache = {};
-function getShapeGeo(i) {
-  if (shapeCache[i]) return shapeCache[i];
-  let g;
-  if (i === 1) {                                    // 小方块
-    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
-    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
-    g.computeVertexNormals();
-  } else if (i === 2) {                             // 甜甜圈
-    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
-    g.rotateX(Math.PI / 2);
-    g.translate(0, -0.1525, 0);
-    g.computeVertexNormals();
-  } else if (i === 3) {                             // 布丁
-    const pts = [
-      new THREE.Vector2(0.001, 0),
-      new THREE.Vector2(0.72, 0),
-      new THREE.Vector2(0.95, 0.26),
-      new THREE.Vector2(0.82, 0.6),
-      new THREE.Vector2(0.32, 0.9),
-      new THREE.Vector2(0.001, 0.99),
-    ];
-    g = new THREE.LatheGeometry(pts, 26);
-    g.scale(1.05, 1.42, 1.05);
-    g.translate(0, -0.6725, 0);
-    g.computeVertexNormals();
-  } else {
-    g = slimeGeoMerged;                             // 圆滚滚
-  }
-  shapeCache[i] = g;
-  return g;
-}
-function cycleShape() {
-  ensureAudio();
-  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
-  const g = getShapeGeo(slimeShapeIdx);
-  slimeMesh.geometry = g;
-  basePos = Float32Array.from(g.attributes.position.array);
-  baseNor = Float32Array.from(g.attributes.normal.array);
-  spawnSparkles(6);
-  say('变——！');
-  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
-  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
-}
-
-// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
-const fishes = [];
-{
-  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
-  for (let i = 0; i < 3; i++) {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
-    body.rotation.x = Math.PI / 2;
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
-    tail.rotation.x = -Math.PI / 2;
-    tail.position.z = -0.13;
-    g.add(body, tail);
-    g.visible = false;
-    scene.add(g);
-    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
-  }
-}
-function fishJump() {
-  const f = fishes.find(f => !f.jumping);
-  if (!f) return;
-  const a = Math.random() * Math.PI * 2;
-  const r0 = Math.random() * 0.5;
-  const a2 = a + 1.2 + Math.random() * 1.2;
-  const r1 = 0.3 + Math.random() * 0.5;
-  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
-  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
-  f.jumping = true;
-  f.pt = 0;
-  f.g.visible = true;
-  spawnRipple(f.p0.x, f.p0.z, 0.4);
-  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
-  blip(320, 720, 0.08, 0.06);
-}
-function updateFishes(dt) {
-  for (const f of fishes) {
-    if (f.jumping) {
-      f.pt += dt / 0.85;
-      if (f.pt >= 1) {
-        f.jumping = false;
-        f.g.visible = false;
-        f.cool = 2.5 + Math.random() * 4.5;
-        spawnRipple(f.p1.x, f.p1.z, 0.35);
-      } else {
-        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
-        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
-        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
-        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
-      }
-    } else {
-      f.cool -= dt;
-      if (f.cool <= 0) fishJump();
-    }
-  }
-}
-
 /* ================= 史莱姆本体 ================= */
 // 1) 果冻身体：球体压平底 + 顶点级弹簧抖动
 const slimeGeo = new THREE.SphereGeometry(0.9, 48, 32);
@@ -828,35 +596,21 @@ const slimeGroup = new THREE.Group();
 slimeGroup.add(slimeMesh);
 scene.add(slimeGroup);
 
-// 2) 表情：眼睛（会看鼠标、会眨眼）+ 嘴巴 + 腮红
-const matEyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+/* ================= 表情：眼睛藏在果冻内部（折射光斑）+ 表面只有嘴巴 ================= */
+// 眼睛不再使用任何表面眼球实体：两颗深色小珠封在果冻体内，
+// 透过折射材质（transmission）看过去会被水球折射扭曲，像封在橡皮糖里的糖珠
 const matPupil    = new THREE.MeshStandardMaterial({ color: 0x1d2430, roughness: 0.3 });
 const matMouth    = new THREE.MeshStandardMaterial({ color: 0x2b2b33, roughness: 0.35 });
-const matCheek    = new THREE.MeshStandardMaterial({ color: 0xff9ecb, roughness: 0.9, transparent: true, opacity: 0.65 });
+const matEyeSpot  = new THREE.MeshStandardMaterial({ color: 0x1a212c, roughness: 0.2 });
+const matCheekIn  = new THREE.MeshStandardMaterial({ color: 0xff8fb8, roughness: 0.5 });
 
-function makeEye(sign) {
-  const center = new THREE.Vector3(sign * 0.30, 0.60, 0.60).normalize().multiplyScalar(1.0);
-  const g = new THREE.Group();
-  g.position.copy(center);
-  const white = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 14), matEyeWhite);
-  g.add(white);
-  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 10), matPupil);
-  g.add(pupil);
-  // 眼睛局部坐标系（法线 / 切线），瞳孔沿切面移动
-  const n = center.clone().normalize();
-  const right = new THREE.Vector3(0, 1, 0).cross(n).normalize();
-  const up = n.clone().cross(right).normalize();
-  slimeGroup.add(g);
-  return { group: g, pupil, n, right, up, base: center };
-}
-const eyeL = makeEye(-1);
-const eyeR = makeEye(1);
+const eyeSpotL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), matEyeSpot);
+const eyeSpotR = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), matEyeSpot);
+slimeGroup.add(eyeSpotL, eyeSpotR);
 
-// 开心眯眯眼（∩ 形弧线，抚摸 / 心情好时替换圆眼睛）
+// 开心眯眯眼（∩ 形弧线，同样藏在内部）
 function makeHappyArc() {
   const m = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.021, 8, 20, Math.PI * 0.9), matMouth);
-  m.position.copy(new THREE.Vector3(0, 0.60, 0.60).normalize().multiplyScalar(0.99));
-  m.position.x = 0; // 位置在加入时逐个设置
   m.rotation.set(-0.3, 0, Math.PI * 0.05);
   m.visible = false;
   slimeGroup.add(m);
@@ -864,26 +618,56 @@ function makeHappyArc() {
 }
 const arcL = makeHappyArc();
 const arcR = makeHappyArc();
-arcL.position.set(-0.30, 0.62, 0.74);
-arcR.position.set(0.30, 0.62, 0.74);
 
+// 腮红：粉色小珠，同样封在体内
+const cheekL = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), matCheekIn);
+const cheekR = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), matCheekIn);
+slimeGroup.add(cheekL, cheekR);
+
+// 表面唯一保留的五官：嘴巴（微笑弧，难过时翻转成苦瓜脸）
 const smile = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.024, 8, 24, Math.PI * 0.85), matMouth);
-smile.position.set(0, 0.40, 0.82);
-smile.rotation.set(-0.45, 0, Math.PI); // 弧形开口朝上 = 微笑（难过时翻转为 0 = ∩ 苦瓜脸）
+smile.rotation.set(-0.45, 0, Math.PI);
 slimeGroup.add(smile);
 const mouthO = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.026, 8, 24), matMouth);
-mouthO.position.set(0, 0.38, 0.83);
 mouthO.rotation.x = -0.45;
 mouthO.visible = false;
 slimeGroup.add(mouthO);
 
-[-1, 1].forEach(sign => {
-  const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.07, 16), matCheek);
-  const p = new THREE.Vector3(sign * 0.47, 0.42, 0.63).normalize();
-  cheek.position.copy(p.multiplyScalar(0.985));
-  cheek.lookAt(cheek.position.clone().multiplyScalar(2));
-  slimeGroup.add(cheek);
-});
+// 不同形态的五官定位表（眼睛/腮红藏在体内，嘴巴贴在表面）
+const FACE_FIT = [
+  { // 圆滚滚
+    eyeL: new THREE.Vector3(-0.24, 0.49, 0.49), eyeR: new THREE.Vector3(0.24, 0.49, 0.49),
+    mouth: new THREE.Vector3(0, 0.40, 0.82),
+    cheekL: new THREE.Vector3(-0.34, 0.26, 0.46), cheekR: new THREE.Vector3(0.34, 0.26, 0.46),
+  },
+  { // 小方块
+    eyeL: new THREE.Vector3(-0.23, 0.45, 0.45), eyeR: new THREE.Vector3(0.23, 0.45, 0.45),
+    mouth: new THREE.Vector3(0, 0.30, 0.80),
+    cheekL: new THREE.Vector3(-0.32, 0.24, 0.44), cheekR: new THREE.Vector3(0.32, 0.24, 0.44),
+  },
+  { // 甜甜圈
+    eyeL: new THREE.Vector3(-0.62, 0.02, 0.62), eyeR: new THREE.Vector3(0.62, 0.02, 0.62),
+    mouth: new THREE.Vector3(0, -0.10, 1.45),
+    cheekL: new THREE.Vector3(-0.85, -0.05, 0.35), cheekR: new THREE.Vector3(0.85, -0.05, 0.35),
+  },
+  { // 布丁
+    eyeL: new THREE.Vector3(-0.22, 0.42, 0.42), eyeR: new THREE.Vector3(0.22, 0.42, 0.42),
+    mouth: new THREE.Vector3(0, 0.02, 0.80),
+    cheekL: new THREE.Vector3(-0.34, 0.22, 0.44), cheekR: new THREE.Vector3(0.34, 0.22, 0.44),
+  },
+];
+function applyFaceFit(idx) {
+  const f = FACE_FIT[idx] || FACE_FIT[0];
+  eyeSpotL.position.copy(f.eyeL);
+  eyeSpotR.position.copy(f.eyeR);
+  arcL.position.copy(f.eyeL);
+  arcR.position.copy(f.eyeR);
+  cheekL.position.copy(f.cheekL);
+  cheekR.position.copy(f.cheekR);
+  smile.position.copy(f.mouth);
+  mouthO.position.copy(f.mouth);
+}
+applyFaceFit(0);
 
 /* ================= 帽子系统 ================= */
 const hatGroup = new THREE.Group();
@@ -1278,7 +1062,9 @@ function splashSound() {
     const src = actx.createBufferSource();
     src.buffer = buf;
     const f = actx.createBiquadFilter();
-    f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.8;
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 0.8;
     const g = actx.createGain();
     g.gain.value = 0.25;
     src.connect(f).connect(g).connect(actx.destination);
@@ -1309,7 +1095,6 @@ const slime = {
   yaw: 0,
   moodT: 0,
   blinkT: -1, nextBlink: 1.8,
-  // 新增
   grow: 1,          // 吃苹果变大
   danceT: 0, danceBaseYaw: 0, danceScale: 1, noteT: 0, beat: 0,
   chompT: 0,        // 咀嚼动画
@@ -1323,7 +1108,7 @@ slime.prev.copy(slime.pos);
 
 const mood = { happy: 62 };      // 心情值 0-100
 const pet = { active: false, pulse: 0, toastShown: false };
-const foods = [];                // 场景中的苹果
+const foods = [];                // 场景中的食物
 const babies = [];               // 史莱姆宝宝
 const dnState = { v: 0, target: 0 }; // 昼夜因子 0=白天 1=夜晚
 let lastBabyBlip = 0;
@@ -1912,14 +1697,6 @@ function applyDayNight(dt) {
   winMat.emissiveIntensity = dn * 1.4;
   houseLight.intensity = dn * 1.6;
 }
-const nightBtn = document.getElementById('nightBtn');
-nightBtn.addEventListener('click', () => {
-  ensureAudio();
-  dnState.target = dnState.target === 0 ? 1 : 0;
-  nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
-  toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
-  blip(dnState.target === 1 ? 400 : 600, dnState.target === 1 ? 180 : 1000, 0.25, 0.1);
-});
 
 /* ================= 指针交互 ================= */
 const raycaster = new THREE.Raycaster();
@@ -2225,10 +2002,10 @@ function updateFace(dt, t) {
     smile.rotation.z = sad ? 0 : Math.PI;  // ∩ 苦瓜脸 / ∪ 微笑
   }
 
-  // 眼睛：抚摸/开心时眯眯眼；夜晚犯困半闭；平时圆眼+眨眼
+  // 眼睛（体内光斑）：抚摸/开心时眯眯眼弧线；夜晚犯困半闭；平时圆斑+眨眼
   const happyArc = (pet.active || mood.happy > 75) && S.moodT <= 0 && S.chompT <= 0;
-  eyeL.group.visible = !happyArc;
-  eyeR.group.visible = !happyArc;
+  eyeSpotL.visible = !happyArc;
+  eyeSpotR.visible = !happyArc;
   arcL.visible = happyArc;
   arcR.visible = happyArc;
 
@@ -2240,23 +2017,252 @@ function updateFace(dt, t) {
     if (ph >= 1) { S.blinkT = -1; }
     else eyeScaleY *= Math.max(0.06, 1 - 0.95 * Math.sin(ph * Math.PI));
   }
-  eyeL.group.scale.y = Math.max(0.05, eyeScaleY);
-  eyeR.group.scale.y = Math.max(0.05, eyeScaleY);
+  eyeSpotL.scale.y = Math.max(0.06, eyeScaleY);
+  eyeSpotR.scale.y = Math.max(0.06, eyeScaleY);
+  arcL.scale.y = Math.max(0.06, 1 - dn * 0.3);
+  arcR.scale.y = Math.max(0.06, 1 - dn * 0.3);
 
-  // 瞳孔跟随鼠标（转到史莱姆本地坐标计算）
+  // 视线跟随鼠标：藏在体内的光斑轻轻漂移，透过果冻若隐若现
   raycaster.setFromCamera(ndc, camera);
-  let ok = raycaster.ray.intersectPlane(eyePlane, _v);
+  const ok = raycaster.ray.intersectPlane(eyePlane, _v);
   if (!ok) _v.copy(camera.position);
   slimeGroup.worldToLocal(_v);
   _v.sub(new THREE.Vector3(0, 0.7, 0)).normalize();
-  const px = clamp(_v.x, -1, 1) * 0.05;
-  const py = clamp(_v.y, -1, 1) * 0.045;
-  for (const eye of [eyeL, eyeR]) {
-    eye.pupil.position.set(
-      eye.n.x * 0.082 + eye.right.x * px + eye.up.x * py,
-      eye.n.y * 0.082 + eye.right.y * px + eye.up.y * py,
-      eye.n.z * 0.082 + eye.right.z * px + eye.up.z * py
-    );
+  const px = clamp(_v.x, -1, 1) * 0.018;
+  const py = clamp(_v.y, -1, 1) * 0.014;
+  const fit = FACE_FIT[slimeShapeIdx] || FACE_FIT[0];
+  eyeSpotL.position.set(fit.eyeL.x + px, fit.eyeL.y + py, fit.eyeL.z + 0.01);
+  eyeSpotR.position.set(fit.eyeR.x + px, fit.eyeR.y + py, fit.eyeR.z + 0.01);
+}
+
+/* ================= 第四波逻辑：成就 / 摘星 / 变形 / 小鱼 ================= */
+const ACH_DEFS = {
+  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
+  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
+  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
+  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
+  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
+  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
+  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
+  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
+  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
+};
+let achData;
+try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
+achData.unlocked = achData.unlocked || {};
+achData.c = achData.c || {};
+function saveAch() {
+  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
+}
+function achCelebrate(def) {
+  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
+  blip(660, 1320, 0.14, 0.1);
+  blip(880, 1760, 0.16, 0.1, 0.12);
+}
+function achInc(id, add) {
+  const def = ACH_DEFS[id];
+  if (!def || achData.unlocked[id]) return;
+  achData.c[id] = (achData.c[id] || 0) + add;
+  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
+  saveAch();
+  if (achData.unlocked[id]) achCelebrate(def);
+}
+function achUnlockNow(id) {
+  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
+  achData.unlocked[id] = true;
+  saveAch();
+  achCelebrate(ACH_DEFS[id]);
+}
+
+// —— 摘星挑战 ——
+const starShapeGeo = (() => {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.17 : 0.075;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
+})();
+const starGame = { active: false, stars: [], collected: 0, total: 5 };
+function toggleStarGame() {
+  ensureAudio();
+  if (starGame.active) {
+    starGame.stars.forEach(s => scene.remove(s.mesh));
+    starGame.stars = [];
+    starGame.active = false;
+    document.getElementById('starHud').classList.remove('show');
+    toast('摘星挑战取消');
+    blip(420, 240, 0.15, 0.08);
+    return;
+  }
+  starGame.active = true;
+  starGame.collected = 0;
+  starGame.stars = [];
+  for (let i = 0; i < starGame.total; i++) {
+    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
+    let x = 0, z = 0, ok = false, tries = 0;
+    while (!ok && tries < 40) {
+      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
+           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
+           !inPond(x, z);
+      tries++;
+    }
+    mesh.position.set(x, 0.55, z);
+    scene.add(mesh);
+    starGame.stars.push({ mesh, ph: Math.random() * 6 });
+  }
+  const hud = document.getElementById('starHud');
+  hud.textContent = '⭐ 0 / ' + starGame.total;
+  hud.classList.add('show');
+  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
+  say('摘星星咯！');
+  blip(520, 1040, 0.15, 0.1);
+}
+function collectStar(s) {
+  scene.remove(s.mesh);
+  starGame.collected++;
+  const hud = document.getElementById('starHud');
+  if (starGame.collected >= starGame.total) {
+    starGame.active = false;
+    hud.textContent = '⭐ 全部收集！';
+    setTimeout(() => hud.classList.remove('show'), 1400);
+    mood.happy = Math.min(100, mood.happy + 26);
+    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
+      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
+    for (let k = 0; k < 4; k++) {
+      spawnHeart(new THREE.Vector3(
+        slime.pos.x + (Math.random() - 0.5) * 0.8,
+        slime.pos.y + 1.2 + k * 0.2,
+        slime.pos.z));
+    }
+    toast('⭐ 全部收集完成！史莱姆太棒了！');
+    say('全部拿到啦！');
+    blip(523, 523, 0.12, 0.1);
+    blip(659, 659, 0.12, 0.1, 0.12);
+    blip(784, 784, 0.12, 0.1, 0.24);
+    blip(1047, 1047, 0.25, 0.12, 0.36);
+    achInc('star1', 1);
+  } else {
+    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
+    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
+    blip(880, 1560, 0.12, 0.12);
+    mood.happy = Math.min(100, mood.happy + 4);
+  }
+}
+function updateStarGame(dt, t) {
+  if (!starGame.active) return;
+  for (const s of starGame.stars) {
+    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
+    s.mesh.rotation.y += dt * 1.6;
+  }
+}
+
+// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
+const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
+let slimeShapeIdx = 0;
+const shapeCache = {};
+function getShapeGeo(i) {
+  if (shapeCache[i]) return shapeCache[i];
+  let g;
+  if (i === 1) {                                    // 小方块
+    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
+    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
+    g.computeVertexNormals();
+  } else if (i === 2) {                             // 甜甜圈
+    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
+    g.rotateX(Math.PI / 2);
+    g.translate(0, -0.1525, 0);
+    g.computeVertexNormals();
+  } else if (i === 3) {                             // 布丁
+    const pts = [
+      new THREE.Vector2(0.001, 0),
+      new THREE.Vector2(0.72, 0),
+      new THREE.Vector2(0.95, 0.26),
+      new THREE.Vector2(0.82, 0.6),
+      new THREE.Vector2(0.32, 0.9),
+      new THREE.Vector2(0.001, 0.99),
+    ];
+    g = new THREE.LatheGeometry(pts, 26);
+    g.scale(1.05, 1.42, 1.05);
+    g.translate(0, -0.6725, 0);
+    g.computeVertexNormals();
+  } else {
+    g = slimeGeoMerged;                             // 圆滚滚
+  }
+  shapeCache[i] = g;
+  return g;
+}
+function cycleShape() {
+  ensureAudio();
+  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
+  const g = getShapeGeo(slimeShapeIdx);
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  applyFaceFit(slimeShapeIdx);
+  spawnSparkles(6);
+  say('变——！');
+  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
+  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
+}
+
+// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
+const fishes = [];
+{
+  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
+    body.rotation.x = Math.PI / 2;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = -0.13;
+    g.add(body, tail);
+    g.visible = false;
+    scene.add(g);
+    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
+  }
+}
+function fishJump() {
+  const f = fishes.find(f => !f.jumping);
+  if (!f) return;
+  const a = Math.random() * Math.PI * 2;
+  const r0 = Math.random() * 0.5;
+  const a2 = a + 1.2 + Math.random() * 1.2;
+  const r1 = 0.3 + Math.random() * 0.5;
+  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
+  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
+  f.jumping = true;
+  f.pt = 0;
+  f.g.visible = true;
+  spawnRipple(f.p0.x, f.p0.z, 0.4);
+  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
+  blip(320, 720, 0.08, 0.06);
+}
+function updateFishes(dt) {
+  for (const f of fishes) {
+    if (f.jumping) {
+      f.pt += dt / 0.85;
+      if (f.pt >= 1) {
+        f.jumping = false;
+        f.g.visible = false;
+        f.cool = 2.5 + Math.random() * 4.5;
+        spawnRipple(f.p1.x, f.p1.z, 0.35);
+      } else {
+        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
+        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
+        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
+        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
+      }
+    } else {
+      f.cool -= dt;
+      if (f.cool <= 0) fishJump();
+    }
   }
 }
 
@@ -2292,7 +2298,7 @@ function updateGameLogic(dt, t) {
   // 下雨天天心情会慢慢变好（史莱姆喜欢雨天）
   if (weather.rainAmt > 0.7) mood.happy = Math.min(100, mood.happy + dt * 0.5);
 
-  // --- 自动去吃苹果 ---
+  // --- 自动去吃食物 ---
   if (S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 && S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0) {
     for (const f of foods) {
       if (f.eaten || !f.resting) continue;
