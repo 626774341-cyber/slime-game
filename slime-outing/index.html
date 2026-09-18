@@ -140,14 +140,6 @@
     #moodBarWrap{width:100px;}
   }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
-  }
-}
-</script>
 </head>
 <body>
 <div id="app"></div>
@@ -165,7 +157,7 @@
   <div class="card" id="titleCard">
     <h1>🧺 史莱姆郊游 · 3D</h1>
     <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-    <span id="verChip">v1.3.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+    <span id="verChip">v1.3.1 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
   </div>
 
   <!-- 功能按钮 -->
@@ -227,11 +219,38 @@ window.addEventListener('error', e=>{
   const el = document.getElementById('loadErr');
   if(el){ el.style.display='block'; el.textContent = '出错了：'+(e.message||e.type); }
 });
+// 8 秒后若 3D 引擎仍未就绪，给出网络提示与重试按钮
+setTimeout(function(){
+  if(!window.__outingLoaded){
+    var lt = document.getElementById('loadText');
+    var err = document.getElementById('loadErr');
+    if(lt) lt.textContent = '加载超时 😥';
+    if(err){
+      err.style.display = 'block';
+      err.textContent = '3D 资源（Three.js CDN）加载失败，多半是网络问题。请换 Wi-Fi / 热点后点下面按钮重试；用 Chrome 打开效果最佳。';
+    }
+    var btn = document.createElement('button');
+    btn.textContent = '🔄 重试加载';
+    btn.style.cssText = 'margin-top:14px;padding:9px 26px;border:none;border-radius:12px;background:#ff8fb0;color:#fff;font-size:14px;font-family:inherit;';
+    btn.onclick = function(){ location.reload(); };
+    var loading = document.getElementById('loading');
+    if(loading) loading.appendChild(btn);
+  }
+}, 8000);
 </script>
 
 <script type="module">
-import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+// Three.js 双 CDN 兜底加载（jsdelivr 主源，unpkg 备用）
+let THREE;
+try{
+  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js');
+}catch(e1){
+  try{
+    THREE = await import('https://unpkg.com/three@0.170.0/build/three.module.js');
+  }catch(e2){
+    throw new Error('Three.js CDN 加载失败，请检查网络后刷新重试：'+e2.message);
+  }
+}
 
 /* ================================================================
    工具
@@ -583,7 +602,21 @@ scene.background = new THREE.Color(0x9fdcff);
 scene.fog = new THREE.Fog(0xcfeafd, 10, 30);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// 自建极简环境场景（替代 RoomEnvironment，少一个 CDN 依赖）
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0xbfe8ff);
+const envRoom = new THREE.Mesh(
+  new THREE.BoxGeometry(10,10,10),
+  new THREE.MeshBasicMaterial({ color:0xfdfdfd, side:THREE.BackSide })
+);
+envScene.add(envRoom);
+const envTop = new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshBasicMaterial({ color:0xffffff }));
+envTop.rotation.x = Math.PI/2; envTop.position.y = 4.7;
+envScene.add(envTop);
+const envGround = new THREE.Mesh(new THREE.PlaneGeometry(8,8), new THREE.MeshBasicMaterial({ color:0x9fce7f }));
+envGround.rotation.x = -Math.PI/2; envGround.position.y = -4.7;
+envScene.add(envGround);
+scene.environment = pmrem.fromScene(envScene, 0.04).texture;
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 400);
 const cam = {
@@ -3447,6 +3480,7 @@ window.addEventListener('resize', ()=>{
 });
 
 /* --- 启动 --- */
+window.__outingLoaded = true;
 ui.moodEmoji.textContent = moodEmoji();
 tick();
 setTimeout(()=>{
