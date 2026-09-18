@@ -445,30 +445,55 @@ function nearestOutsidePoint(x, z, radius) {
   }
   return { x: clamp(px, -BOUND + 0.3, BOUND - 0.3), z: clamp(pz, -BOUND + 0.3, BOUND - 0.3) };
 }
-// 线段 (x,z)→(tx,tz) 前进方向上第一处撞到的障碍物：
-// 返回撞点距离（-1 = 一路畅通，0 = 起点已在禁区内 / 紧贴禁区）
-function segmentToObstacle(x, z, tx, tz, radius) {
+// 线段 (x,z)→(tx,tz) 前进方向上第一个挡路的障碍物：
+// 返回 { t: 撞点距离, o: 障碍物 }，畅通返回 null
+function firstBlockingObstacle(x, z, tx, tz, radius) {
   const dx = tx - x, dz = tz - z;
   const L = Math.hypot(dx, dz) || 1e-6;
   const ux = dx / L, uz = dz / L;
-  let best = -1;
+  let best = null;
   for (const o of OBSTACLES) {
     const min = o.r + radius;
     const fx = x - o.x, fz = z - o.z;
     const c = fx * fx + fz * fz - min * min;
-    if (c < 0) return 0;                      // 起点在禁区内
+    if (c < 0) return { t: 0, o };            // 起点在禁区内
     const b = fx * ux + fz * uz;
     if (b >= 0) continue;                     // 障碍物在身后，撞不上
     const D = b * b - c;
     if (D < 0) continue;                      // 射线擦不到
     const t = -b - Math.sqrt(D);
-    if (t >= 0 && t <= L && (best < 0 || t < best)) best = t;
+    if (t >= 0 && t <= L && (!best || t < best.t)) best = { t, o };
   }
   return best;
 }
-// 两点间直线路径是否畅通（自动觅食 / 摘星 / 追球用：被挡住就换目标，不在树边空磕）
-function pathClear(x, z, tx, tz) {
-  return segmentToObstacle(x, z, tx, tz, 0.55) < 0;
+function segmentToObstacle(x, z, tx, tz, radius) {
+  const blk = firstBlockingObstacle(x, z, tx, tz, radius);
+  return blk ? blk.t : -1;
+}
+// 找一个"切线绕行点"：从挡路的障碍物旁边绕过去，而不是傻停在树边。
+// 优先绕目标所在的那一侧；绕行点必须一路畅通、且比当前位置更接近目标（防止绕反 / 打转）
+function pickWaypoint(p, target) {
+  const blk = firstBlockingObstacle(p.x, p.z, target.x, target.z, 0.55);
+  if (!blk) return null;
+  const o = blk.o;
+  const R = o.r + 0.66;                        // 绕行圈半径 = 禁区 + 史莱姆体积 + 余量
+  const px = p.x - o.x, pz = p.z - o.z;
+  const d = Math.hypot(px, pz) || 1e-4;
+  // 目标在 (圆心→p) 连线的哪一侧，就沿哪一侧绕（cross > 0 = 左侧）
+  const side = Math.sign(px * (target.z - p.z) - pz * (target.x - p.x)) || 1;
+  const alpha = Math.atan2(pz, px);
+  const beta = Math.acos(Math.min(1, R / d));  // 从 p 看绕行圈的两条切线夹角
+  let w;
+  if (beta < 0.5) {
+    // 已经几乎贴着绕行圈：沿切线方向走一小段弦绕过去
+    w = { x: p.x + (-pz / d * side) * 0.9, z: p.z + (px / d * side) * 0.9 };
+  } else {
+    const a = side > 0 ? alpha + beta : alpha - beta;
+    w = { x: o.x + Math.cos(a) * R, z: o.z + Math.sin(a) * R };
+  }
+  if (segmentToObstacle(p.x, p.z, w.x, w.z, 0.55) < 0 &&
+      Math.hypot(w.x - target.x, w.z - target.z) < Math.hypot(p.x - target.x, p.z - target.z)) return w;
+  return null;
 }
 
 // 天上的云（缓慢漂移）
@@ -1138,7 +1163,7 @@ const slime = {
   prev: new THREE.Vector3(),
   effVel: new THREE.Vector3(),
   grabTarget: new THREE.Vector3(),
-  hop: { from: new THREE.Vector3(), to: new THREE.Vector3(), target: new THREE.Vector3(), t: 0, dur: 0.42, h: 0.8, i: 0, count: 0, done: false },
+  hop: { from: new THREE.Vector3(), to: new THREE.Vector3(), target: new THREE.Vector3(), t: 0, dur: 0.42, h: 0.8, i: 0, count: 0, done: false, waypoint: null },
   sq:   { x: 0, v: 0 },
   wob1: { x: 0, v: 0 },
   wob2: { x: 0, v: 0 },
@@ -1248,17 +1273,25 @@ function megaJump() {
 }
 function computeHopLeg() {
   const H = slime.hop;
-  const dx = H.target.x - slime.pos.x;
-  const dz = H.target.z - slime.pos.z;
+  // 到达绕行点后清掉，继续朝原目标规划
+  if (H.waypoint && Math.hypot(H.waypoint.x - slime.pos.x, H.waypoint.z - slime.pos.z) < 0.3) H.waypoint = null;
+  const aim = H.waypoint || H.target;
+  const dx = aim.x - slime.pos.x;
+  const dz = aim.z - slime.pos.z;
   const dist = Math.hypot(dx, dz);
-  if (dist < 0.18) { H.done = true; return; }
+  if (dist < 0.18) {
+    if (H.waypoint) { H.waypoint = null; return computeHopLeg(); }
+    H.done = true; return;
+  }
   let leg = Math.min(1.15, dist);
-  // 跳跃路径撞到障碍物就把这一段截短：在树边 / 墙边稳稳停住，
-  // 不再穿过去后被硬推出来（闪现感）
-  const hit = segmentToObstacle(slime.pos.x, slime.pos.z, H.target.x, H.target.z, 0.55);
+  // 正前方被障碍物挡住：找切线绕行点，优雅地绕过去继续走
+  const hit = segmentToObstacle(slime.pos.x, slime.pos.z, aim.x, aim.z, 0.55);
   if (hit >= 0 && hit < leg) {
+    const wrap = pickWaypoint(slime.pos, aim);
+    if (wrap) { H.waypoint = wrap; return computeHopLeg(); }
+    // 两侧都绕不开（贴着障碍物且目标在障碍物那侧的夹缝）：截短这一段，小磕一下就停
     leg = Math.max(hit - 0.06, 0.1);
-    if (hit <= 0.18) H.done = true;           // 已经贴着障碍物：原地小磕一下就停
+    if (hit <= 0.18) H.done = true;
   }
   H.from.copy(slime.pos);
   H.to.set(slime.pos.x + dx / dist * leg, GROUND_Y, slime.pos.z + dz / dist * leg);
@@ -1276,7 +1309,8 @@ function startHops(target) {
   // 目标点落在障碍物（树 / 小屋）里时，自动重定向到最近的禁区外
   const safe = nearestOutsidePoint(target.x, target.z, 0.6);
   H.target.set(clamp(safe.x, -BOUND, BOUND), GROUND_Y, clamp(safe.z, -BOUND, BOUND));
-  H.count = clamp(Math.ceil(d / 1.15), 1, 4);
+  H.waypoint = null;
+  H.count = clamp(Math.ceil(d / 1.15) + 3, 3, 12);   // +3 步余量给绕行
   H.i = 0;
   H.done = false;
   computeHopLeg();
@@ -2416,7 +2450,7 @@ function updateGameLogic(dt, t) {
       if (f.eaten || !f.resting) continue;
       const d = Math.hypot(f.pos.x - S.pos.x, f.pos.z - S.pos.z);
       if (d < 0.8) { eatFood(f); break; }
-      if (d < 8 && S.hopCooldown <= 0 && pathClear(S.pos.x, S.pos.z, f.pos.x, f.pos.z)) {
+      if (d < 8 && S.hopCooldown <= 0) {
         S.hopCooldown = 1.2;
         startHops(f.pos);
         break;
@@ -2440,8 +2474,7 @@ function updateGameLogic(dt, t) {
         const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
         if (d < bd) { bd = d; best = st; }
       }
-      if (best && bd > 0.7 && bd < 9 &&
-          pathClear(S.pos.x, S.pos.z, best.mesh.position.x, best.mesh.position.z)) {
+      if (best && bd > 0.7 && bd < 9) {
         S.hopCooldown = 1.0;
         startHops(best.mesh.position);
       }
@@ -2453,8 +2486,7 @@ function updateGameLogic(dt, t) {
       S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
     const hasFood = foods.some(f => !f.eaten && f.resting);
     const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
-    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0 &&
-        pathClear(S.pos.x, S.pos.z, ball.pos.x, ball.pos.z)) {
+    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
       S.hopCooldown = 1.0;
       startHops(ball.pos);
     }
