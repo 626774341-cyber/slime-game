@@ -99,7 +99,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.1.1 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.3 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -111,6 +111,7 @@
   <span>👆 点一下戳戳</span>
   <span>🤚 长按抚摸</span>
   <span>🎯 点地跳过去</span>
+  <span>🤸 蹦床 · 秋千 点着玩</span>
   <span>⌨️ 空格大跳 · B 跳舞</span>
   <span>🔄 拖空白转视角 · 🔍 缩放</span>
 </div>
@@ -181,6 +182,107 @@ function inPond(x, z) {
   return dx * dx + dz * dz < POND.r * POND.r;
 }
 
+/* ================= v1.3 程序化贴图工厂（木纹 / 瓦片 / 灰泥 / 砖 / 草地 / 水面波光，零外部资源） ================= */
+function makeCanvasTexture(draw, size = 512) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  draw(cv.getContext('2d'), size);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+const texWood = makeCanvasTexture((ctx, s) => {
+  ctx.fillStyle = '#9a6a45';
+  ctx.fillRect(0, 0, s, s);
+  for (let r = 0; r < 4; r++) {                 // 板条缝
+    const y = r * s / 4;
+    ctx.fillStyle = 'rgba(60,34,18,0.5)'; ctx.fillRect(0, y, s, 3);
+    ctx.fillStyle = 'rgba(255,225,180,0.16)'; ctx.fillRect(0, y + 3, s, 2);
+  }
+  ctx.lineWidth = 1.6;
+  for (let i = 0; i < 70; i++) {                // 木纹
+    ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(70,42,22,0.15)' : 'rgba(255,220,170,0.10)';
+    const y = Math.random() * s;
+    ctx.beginPath(); ctx.moveTo(0, y);
+    ctx.bezierCurveTo(s * 0.3, y + (Math.random() - 0.5) * 14, s * 0.7, y + (Math.random() - 0.5) * 14, s, y + (Math.random() - 0.5) * 8);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 3; i++) {                 // 节疤
+    const x = Math.random() * s, y = Math.random() * s;
+    const g = ctx.createRadialGradient(x, y, 1, x, y, 9);
+    g.addColorStop(0, 'rgba(60,34,18,0.55)'); g.addColorStop(1, 'rgba(60,34,18,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
+  }
+});
+texWood.repeat.set(3, 1);
+const texPlaster = makeCanvasTexture((ctx, s) => {
+  ctx.fillStyle = '#f7ecd8'; ctx.fillRect(0, 0, s, s);
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(150,120,80,0.05)' : 'rgba(255,255,255,0.06)';
+    ctx.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+  }
+}, 256);
+const texShingle = makeCanvasTexture((ctx, s) => {
+  ctx.fillStyle = '#a8492f'; ctx.fillRect(0, 0, s, s);
+  const rows = 6, w = s / 5, h = s / rows;
+  for (let r = 0; r < rows + 1; r++) {
+    for (let c = -1; c < 6; c++) {
+      const x = c * w + (r % 2) * w / 2, y = r * h;
+      ctx.fillStyle = `hsl(${10 + Math.random() * 8},${46 + Math.random() * 10}%,${34 + Math.random() * 13}%)`;
+      ctx.beginPath();
+      ctx.moveTo(x + 3, y); ctx.lineTo(x + w - 3, y);
+      ctx.lineTo(x + w - 3, y + h * 0.72);
+      ctx.quadraticCurveTo(x + w / 2, y + h * 0.96, x + 3, y + h * 0.72);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,20,10,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+});
+const texBrick = makeCanvasTexture((ctx, s) => {
+  ctx.fillStyle = '#c9b29a'; ctx.fillRect(0, 0, s, s);
+  const bw = s / 5, bh = s / 8;
+  for (let r = 0; r < 8; r++) {
+    for (let c = -1; c < 6; c++) {
+      const x = c * bw + (r % 2) * bw / 2, y = r * bh;
+      ctx.fillStyle = `hsl(${12 + Math.random() * 8},${34 + Math.random() * 12}%,${38 + Math.random() * 10}%)`;
+      ctx.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+    }
+  }
+}, 256);
+const texGrass = makeCanvasTexture((ctx, s) => {
+  ctx.fillStyle = '#7cbd52'; ctx.fillRect(0, 0, s, s);
+  ctx.fillStyle = 'rgba(255,255,255,0.055)';
+  for (let i = 0; i < 4; i++) {                 // 割草条纹
+    ctx.save(); ctx.translate(i * s / 2, 0); ctx.rotate(0.35); ctx.fillRect(0, -s, s / 4, s * 3); ctx.restore();
+  }
+  for (let i = 0; i < 2400; i++) {              // 草叶噪点
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(56,110,38,0.16)' : 'rgba(196,232,130,0.14)';
+    ctx.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+  }
+  for (let i = 0; i < 6; i++) {                 // 深浅斑块
+    const x = Math.random() * s, y = Math.random() * s, r = 40 + Math.random() * 70;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(50,100,35,0.10)'); g.addColorStop(1, 'rgba(50,100,35,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+});
+texGrass.repeat.set(2, 2);
+const texCaustic = makeCanvasTexture((ctx, s) => {
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = 'rgba(255,255,255,0.9)';
+  ctx.shadowBlur = 6;
+  for (let i = 0; i < 15; i++) {
+    const y = Math.random() * s;
+    ctx.beginPath(); ctx.moveTo(0, y);
+    ctx.bezierCurveTo(s * 0.3, y - 16, s * 0.6, y + 16, s, y);
+    ctx.stroke();
+  }
+}, 256);
+texCaustic.repeat.set(3, 3);
+
 /* ================= 渲染器 / 场景 / 相机 ================= */
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -236,29 +338,43 @@ scene.add(moonLight);
 const world = new THREE.Group();
 scene.add(world);
 
-const matWood  = new THREE.MeshStandardMaterial({ color: 0x9a6a45, roughness: 0.85 });
+const matWood  = new THREE.MeshStandardMaterial({ map: texWood, roughness: 0.85 });
 const matGrass = new THREE.MeshStandardMaterial({ color: 0x82c95e, roughness: 0.95 });
+const matSoil  = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 1 });
 const matTrunk = new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.9 });
-const matLeafA = new THREE.MeshStandardMaterial({ color: 0x5fb85a, roughness: 0.9 });
-const matLeafB = new THREE.MeshStandardMaterial({ color: 0x4da34f, roughness: 0.9 });
-const matLeafC = new THREE.MeshStandardMaterial({ color: 0x6fca66, roughness: 0.9 });
+const matLeafA = new THREE.MeshStandardMaterial({ color: 0x5fb85a, roughness: 0.9, flatShading: true });
+const matLeafB = new THREE.MeshStandardMaterial({ color: 0x4da34f, roughness: 0.9, flatShading: true });
+const matLeafC = new THREE.MeshStandardMaterial({ color: 0x6fca66, roughness: 0.9, flatShading: true });
 const matRock  = new THREE.MeshStandardMaterial({ color: 0xb9b9c0, roughness: 0.9, flatShading: true });
 const matSand  = new THREE.MeshStandardMaterial({ color: 0xe6d29a, roughness: 1 });
 const matPond  = new THREE.MeshStandardMaterial({ color: 0x59c2e8, roughness: 0.12, metalness: 0.05 });
 const matCloud = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+// v1.3 建筑材质
+const matWoodDark = new THREE.MeshStandardMaterial({ color: 0x6e4a2e, roughness: 0.85 });
+const matPlaster  = new THREE.MeshStandardMaterial({ map: texPlaster, roughness: 0.95 });
+const matShingle  = new THREE.MeshStandardMaterial({ map: texShingle, roughness: 0.8 });
+const matBrick    = new THREE.MeshStandardMaterial({ map: texBrick, roughness: 0.9 });
+const matGold     = new THREE.MeshStandardMaterial({ color: 0xd8a437, metalness: 0.7, roughness: 0.3 });
+const matReed     = new THREE.MeshStandardMaterial({ color: 0x5a8f3e, roughness: 1 });
 
-// 木质底座 + 草地台面
+// 木质底座（木纹）+ 草地台面（土壤侧面 + 带纹理草皮）
 const baseBox = new THREE.Mesh(new THREE.BoxGeometry(10.5, 1.1, 10.5), matWood);
 baseBox.position.y = -0.57;
 baseBox.receiveShadow = true;
 world.add(baseBox);
 
-const grassTop = new THREE.Mesh(new THREE.BoxGeometry(10, 0.24, 10), matGrass);
+const grassTop = new THREE.Mesh(new THREE.BoxGeometry(10, 0.24, 10), matSoil);
 grassTop.position.y = -0.11;
 grassTop.receiveShadow = true;
 world.add(grassTop);
+const grassPlane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10),
+  new THREE.MeshStandardMaterial({ map: texGrass, roughness: 1 }));
+grassPlane.rotation.x = -Math.PI / 2;
+grassPlane.position.y = 0.012;
+grassPlane.receiveShadow = true;
+world.add(grassPlane);
 
-// 小池塘（沙滩边 + 水面）
+// 小池塘 v1.3（沙滩 + 水面 + 波光 + 荷叶 + 香蒲 + 石圈）
 const pondSand = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), matSand);
 pondSand.rotation.x = -Math.PI / 2;
 pondSand.position.set(POND.x, 0.015, POND.z);
@@ -268,18 +384,69 @@ const pond = new THREE.Mesh(new THREE.CircleGeometry(1.25, 40), matPond);
 pond.rotation.x = -Math.PI / 2;
 pond.position.set(POND.x, 0.022, POND.z);
 world.add(pond);
+const pondGlints = new THREE.Mesh(new THREE.CircleGeometry(1.23, 40),
+  new THREE.MeshBasicMaterial({ map: texCaustic, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+pondGlints.rotation.x = -Math.PI / 2;
+pondGlints.position.set(POND.x, 0.027, POND.z);
+world.add(pondGlints);
+for (let i = 0; i < 12; i++) {                   // 池边石圈
+  const a = i / 12 * Math.PI * 2 + rand() * 0.25;
+  const st = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + rand() * 0.06, 0), matRock);
+  st.position.set(POND.x + Math.cos(a) * 1.38, 0.045, POND.z + Math.sin(a) * 1.38);
+  st.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+  st.castShadow = true;
+  world.add(st);
+}
+[[0.3, 0.4], [-0.5, 0.7], [0.1, -0.55]].forEach(([dx, dz], i) => {   // 荷叶
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.1 + i * 0.025, 0.1 + i * 0.025, 0.012, 12),
+    new THREE.MeshStandardMaterial({ color: 0x3f7d3a, roughness: 0.9 }));
+  pad.position.set(POND.x + dx, 0.03, POND.z + dz);
+  world.add(pad);
+  if (i === 1) {
+    const lf = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xffb7d0, roughness: 0.7 }));
+    lf.position.set(POND.x + dx, 0.065, POND.z + dz);
+    world.add(lf);
+  }
+});
+for (const a of [0.4, 1.3, 2.2, 3.5, 4.6, 5.6]) {                     // 香蒲（芦苇）
+  for (let k = 0; k < 3; k++) {
+    const h = 0.38 + rand() * 0.18;
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, h, 5), matReed);
+    stalk.position.set(POND.x + Math.cos(a) * (1.4 + rand() * 0.1) + k * 0.03,
+      0.012 + h / 2, POND.z + Math.sin(a) * (1.4 + rand() * 0.1));
+    stalk.rotation.z = (rand() - 0.5) * 0.15;
+    world.add(stalk);
+    if (k === 1) {
+      const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.12, 6),
+        new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 1 }));
+      tip.position.set(stalk.position.x + 0.02, 0.012 + h + 0.05, stalk.position.z);
+      world.add(tip);
+    }
+  }
+}
 
-// 一棵低多边形小树
+// 低多边形小树 v1.3（锥形树冠 + 分叉树枝，随风轻摆）
+const treesSway = [];
 function makeTree(s = 1) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 0.55 * s, 7), matTrunk);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * s, 0.13 * s, 0.55 * s, 7), matTrunk);
   trunk.position.y = 0.275 * s; trunk.castShadow = true; g.add(trunk);
-  const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.62 * s, 0.85 * s, 8), matLeafA);
-  c1.position.y = 0.92 * s; c1.castShadow = true; g.add(c1);
-  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.45 * s, 0.7 * s, 8), matLeafB);
-  c2.position.y = 1.38 * s; c2.castShadow = true; g.add(c2);
-  const c3 = new THREE.Mesh(new THREE.ConeGeometry(0.28 * s, 0.5 * s, 8), matLeafC);
-  c3.position.y = 1.75 * s; c3.castShadow = true; g.add(c3);
+  const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, 0.3 * s, 6), matTrunk);
+  branch.position.set(0.12 * s, 0.44 * s, 0);
+  branch.rotation.z = -0.75; branch.castShadow = true; g.add(branch);
+  const blobs = [
+    [0, 0.95, 0, 0.42], [0.28, 0.82, 0.08, 0.3], [-0.26, 0.85, -0.06, 0.32],
+    [0.08, 0.72, -0.18, 0.26], [-0.1, 1.12, 0.05, 0.26], [0.22, 1.05, -0.12, 0.24],
+  ];
+  const leafMats = [matLeafA, matLeafB, matLeafC];
+  blobs.forEach(([x, y, z, r], i) => {
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 1), leafMats[(i + Math.floor(rand() * 3)) % 3]);
+    b.position.set(x * s, y * s, z * s);
+    b.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+    b.castShadow = true;
+    g.add(b);
+  });
   return g;
 }
 [[-3.7, -3.4, 1.15], [3.9, -3.1, 0.95], [-4.1, 1.8, 1.0], [4.0, 3.2, 1.25], [-2.2, 4.1, 0.85]]
@@ -288,6 +455,7 @@ function makeTree(s = 1) {
     t.position.set(x, 0.01, z);
     t.rotation.y = rand() * Math.PI * 2;
     world.add(t);
+    treesSway.push({ g: t, ph: rand() * 10 });
   });
 
 // 石头
@@ -321,6 +489,42 @@ FLOWER_SPOTS.forEach(([x, z], i) => {
   world.add(f);
 });
 
+// 花园木栅栏 + 灌木（v1.3）
+{
+  const p0 = { x: -4.05, z: -1.75 }, p1 = { x: -2.85, z: -1.5 };
+  const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+  for (let i = 0; i < 4; i++) {
+    const t = i / 3;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.07), matWoodDark);
+    post.position.set(p0.x + (p1.x - p0.x) * t, 0.21, p0.z + (p1.z - p0.z) * t);
+    post.castShadow = true;
+    world.add(post);
+  }
+  for (const ry of [0.13, 0.3]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.045, 0.04), matWood);
+    rail.position.set((p0.x + p1.x) / 2, ry, (p0.z + p1.z) / 2);
+    rail.rotation.y = -Math.atan2(p1.z - p0.z, p1.x - p0.x);
+    rail.castShadow = true;
+    world.add(rail);
+  }
+}
+function makeBush(s = 1) {
+  const g = new THREE.Group();
+  [[0, 0.12, 0, 0.2], [0.14, 0.09, 0.05, 0.15], [-0.13, 0.1, -0.04, 0.14]].forEach(([x, y, z, r], i) => {
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 1), [matLeafA, matLeafB, matLeafC][i % 3]);
+    b.position.set(x * s, y * s, z * s);
+    b.castShadow = true;
+    g.add(b);
+  });
+  return g;
+}
+[[-3.7, -1.35], [4.15, 1.5], [-0.6, 2.7]].forEach(([x, z]) => {
+  const b = makeBush(0.9 + rand() * 0.4);
+  b.position.set(x, 0.01, z);
+  b.rotation.y = rand() * Math.PI * 2;
+  world.add(b);
+});
+
 // 草丛
 const matTuft = new THREE.MeshStandardMaterial({ color: 0x5aa84c, roughness: 1 });
 for (let i = 0; i < 24; i++) {
@@ -335,15 +539,99 @@ for (let i = 0; i < 24; i++) {
   world.add(tuft);
 }
 
-// 石板小路
-const matStone = new THREE.MeshStandardMaterial({ color: 0xcfcabc, roughness: 0.9 });
-[[-1.1, -1.1], [-1.75, -1.75], [-2.4, -2.4]].forEach(([x, z]) => {
-  const s = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.06, 7), matStone);
-  s.position.set(x, 0.04, z);
-  s.rotation.y = rand() * Math.PI;
-  s.receiveShadow = true;
-  world.add(s);
+// 石板小路 v1.3（不规则石板，从门口弯向草地中央）
+const stoneMats = [0xcfcabc, 0xc2c6b8, 0xd4d0c2].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+for (let i = 0; i < 7; i++) {
+  const t = i / 6;
+  const x = -0.85 - t * 1.9 + Math.sin(t * 5) * 0.1;
+  const z = -0.85 - t * 1.9 + Math.cos(t * 4) * 0.1;
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.2 + rand() * 0.07, 0.24 + rand() * 0.07, 0.05, 7), stoneMats[i % 3]);
+  st.position.set(x, 0.035 + rand() * 0.015, z);
+  st.rotation.y = rand() * Math.PI;
+  st.receiveShadow = true;
+  world.add(st);
+}
+
+// 小木屋 v1.3（石砌地基 + 抹泥墙 + 木桁架 + 双坡瓦顶 + 百叶窗花箱 + 烟囱炊烟 + 门前提灯）
+const winMat = new THREE.MeshStandardMaterial({
+  color: 0xa8d8ef, roughness: 0.25,
+  emissive: 0xffd98a, emissiveIntensity: 0
 });
+let houseLight, smokeAnchor;
+function makeCottage() {
+  const g = new THREE.Group();
+  const add = (mesh, x = 0, y = 0, z = 0) => {
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
+  // 石砌地基 + 抹泥墙
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.16, 1.75), matBrick), 0, 0.09, 0);
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.02, 1.5), matPlaster), 0, 0.68, 0);
+  // 木桁架：四角柱 + 顶梁
+  [[-0.79, -0.69], [0.79, -0.69], [-0.79, 0.69], [0.79, 0.69]].forEach(([x, z]) => {
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.04, 0.1), matWoodDark), x, 0.68, z);
+  });
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.09, 1.64), matWoodDark), 0, 1.235, 0);
+  // 山墙（三角）
+  const gableShape = new THREE.Shape([
+    new THREE.Vector2(-0.85, 0), new THREE.Vector2(0.85, 0), new THREE.Vector2(0, 0.6),
+  ]);
+  const gable = add(new THREE.Mesh(new THREE.ExtrudeGeometry(gableShape, { depth: 1.44, bevelEnabled: false }), matPlaster), 0, 1.28, -0.72);
+  gable.castShadow = false;
+  // 双坡瓦顶 + 屋脊
+  add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 1.32), matShingle), 0, 1.56, 0.57).rotation.x = 0.615;
+  add(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 1.32), matShingle), 0, 1.56, -0.57).rotation.x = -0.615;
+  const ridge = add(new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 2.05, 8), matWoodDark), 0, 1.9, 0);
+  ridge.rotation.z = Math.PI / 2;
+  // 砖烟囱 + 帽 + 炊烟锚点
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.85, 0.24), matBrick), 0.5, 1.75, -0.32);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.06, 0.33), matWoodDark), 0.5, 2.19, -0.32);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.07, 0.15), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 1 })), 0.5, 2.2, -0.32);
+  smokeAnchor = new THREE.Object3D();
+  smokeAnchor.position.set(0.5, 2.24, -0.32);
+  g.add(smokeAnchor);
+  // 门 + 台阶 + 门把
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.05), matWoodDark), 0, 0.58, 0.755);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.68, 0.055), matWood), 0, 0.56, 0.76);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), matGold), 0.13, 0.52, 0.795);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.07, 7), matBrick), 0, 0.045, 0.95);
+  // 门前提灯（夜晚亮）
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.16), matWoodDark), 0.37, 1.06, 0.76);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), winMat), 0.37, 0.97, 0.83);
+  houseLight = new THREE.PointLight(0xffc766, 0, 5);
+  houseLight.position.set(0.37, 0.98, 0.95);
+  g.add(houseLight);
+  // 前窗 ×2：窗框 + 玻璃 + 窗棂 + 百叶窗 + 花箱
+  [-0.45, 0.45].forEach((wx) => {
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.46, 0.045), matWoodDark), wx, 0.8, 0.75);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.36, 0.035), winMat), wx, 0.8, 0.762);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.028, 0.04), matWoodDark), wx, 0.8, 0.775);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.36, 0.04), matWoodDark), wx, 0.8, 0.775);
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.045, 0.09), matWoodDark), wx, 0.555, 0.78);
+    [-0.31, 0.31].forEach((sx) => {
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.42, 0.025), matShingle), wx + sx, 0.8, 0.745);
+    });
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.11, 0.13), matBrick), wx, 0.6, 0.83);
+    [0xff8fb3, 0xffd45e, 0xff8fb3].forEach((c, i) => {
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8),
+        new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 })), wx - 0.12 + i * 0.12, 0.675, 0.83);
+    });
+  });
+  // 侧窗（+x 面）
+  const sw = add(new THREE.Group(), 0.862, 0.8, 0.2);
+  sw.rotation.y = Math.PI / 2;
+  const sf = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.4, 0.045), matWoodDark); sf.castShadow = true; sw.add(sf);
+  const sg = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 0.035), winMat); sg.position.z = 0.008; sw.add(sg);
+  const sm = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.3, 0.04), matWoodDark); sm.position.z = 0.016; sw.add(sm);
+  return g;
+}
+const HOUSE_POS = { x: -3.3, z: -3.3 };
+const house = makeCottage();
+house.position.set(HOUSE_POS.x, 0.01, HOUSE_POS.z);
+house.rotation.y = Math.PI / 4;
+world.add(house);
 
 // 蹦床蘑菇：踩上去会被弹飞
 const MUSH = { x: -1.6, z: 1.7 };
@@ -369,81 +657,139 @@ const MUSH = { x: -1.6, z: 1.7 };
   world.add(g);
 }
 
-// 小木屋（窗户材质提出来，夜晚会亮灯）
-const winMat = new THREE.MeshStandardMaterial({
-  color: 0xa8d8ef, roughness: 0.3,
-  emissive: 0xffd98a, emissiveIntensity: 0
-});
-function makeHouse() {
+/* ================= v1.2 设施：蹦床 + 秋千（学 Jelly Baby 的设施互动） ================= */
+// 蹦床：点它跳上去，会越弹越高，垫子柔和下陷回弹；点地面就能跳走
+const TRAMP = { x: 2.55, z: 2.35, r: 0.72, top: 0.38 };
+const tramp = { sag: { x: 0, v: 0 }, bounces: 0 };
+{
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.25, 1.5),
-    new THREE.MeshStandardMaterial({ color: 0xf7ead2, roughness: 0.9 }));
-  body.position.y = 0.625; body.castShadow = true; body.receiveShadow = true; g.add(body);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.05, 4),
-    new THREE.MeshStandardMaterial({ color: 0xd96f4e, roughness: 0.8, flatShading: true }));
-  roof.position.y = 1.78; roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true; g.add(roof);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.6, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x7c5233, roughness: 0.9 }));
-  door.position.set(0, 0.32, 0.76); g.add(door);
-  [[-0.5, 0.8], [0.5, 0.8]].forEach(([x, y]) => {
-    const w = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.06), winMat);
-    w.position.set(x, y, 0.76); g.add(w);
-  });
-  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.45, 0.18),
-    new THREE.MeshStandardMaterial({ color: 0xb5563f, roughness: 0.9 }));
-  chimney.position.set(0.45, 1.95, -0.25); chimney.castShadow = true; g.add(chimney);
-  return g;
+  const matSteel = new THREE.MeshStandardMaterial({ color: 0x3f7fae, roughness: 0.35, metalness: 0.5 });
+  const matMat = new THREE.MeshStandardMaterial({ color: 0x37455e, roughness: 0.85 });
+  const matLeg = new THREE.MeshStandardMaterial({ color: 0x5b6470, roughness: 0.6, metalness: 0.4 });
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.36, 8), matLeg);
+    leg.position.set(Math.cos(a) * 0.58, 0.18, Math.sin(a) * 0.58);
+    leg.castShadow = true;
+    g.add(leg);
+  }
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.05, 10, 28), matSteel);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.355;
+  rim.castShadow = true;
+  g.add(rim);
+  const mat = new THREE.Mesh(new THREE.CylinderGeometry(0.63, 0.63, 0.045, 28), matMat);
+  mat.position.y = 0.345;
+  mat.receiveShadow = true;
+  g.add(mat);
+  g.position.set(TRAMP.x, 0.01, TRAMP.z);
+  world.add(g);
+  tramp.matMesh = mat;
 }
-const HOUSE_POS = { x: -3.3, z: -3.3 };
-const house = makeHouse();
-house.position.set(HOUSE_POS.x, 0.01, HOUSE_POS.z);
-house.rotation.y = Math.PI / 4;
-world.add(house);
-const houseLight = new THREE.PointLight(0xffc766, 0, 7);
-houseLight.position.set(HOUSE_POS.x, 1.4, HOUSE_POS.z);
-scene.add(houseLight);
 
-/* ================= 障碍物禁区（防穿模 / 防卡模型） ================= */
-// 圆形禁区：树冠、小屋。史莱姆 / 宝宝 / 球 / 掉落物都会被推出禁区，
-// 跳跃目标落在禁区内也会自动重定向到最近的合法点
-const OBSTACLES = [
-  { x: -3.7, z: -3.4, r: 0.60 },   // 树 1
-  { x: 3.9,  z: -3.1, r: 0.52 },   // 树 2
-  { x: -4.1, z: 1.8,  r: 0.52 },   // 树 3
-  { x: 4.0,  z: 3.2,  r: 0.62 },   // 树 4
-  { x: -2.2, z: 4.1,  r: 0.46 },   // 树 5
-  { x: HOUSE_POS.x, z: HOUSE_POS.z, r: 1.12 }, // 小屋
-];
-// 把点推出所有禁区（p: {x,z} 形式的向量对象），返回是否发生推挤
-function pushOutOfObstacles(p, radius) {
-  let pushed = false;
-  for (const o of OBSTACLES) {
-    const dx = p.x - o.x, dz = p.z - o.z;
-    const d = Math.hypot(dx, dz) || 1e-4;
-    const min = o.r + radius;
-    if (d < min) {
-      p.x = o.x + dx / d * min;
-      p.z = o.z + dz / d * min;
-      pushed = true;
-    }
-  }
-  return pushed;
+// 秋千：点它坐上去越荡越高，戳它会推一把，点地面跳下来
+const SWING = { x: -2.1, z: -0.15, h: 1.55, L: 0.95 };
+const swing = {
+  angle: 0, vel: 0, mounted: false,
+  pushCd: 0, pumpT: 0, jigCd: 0, baseYaw: -0.95,
+  arm: null, seat: null,
+};
+{
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.9 });
+  const ropeM = new THREE.MeshStandardMaterial({ color: 0xd8c49a, roughness: 1 });
+  const seatM = new THREE.MeshStandardMaterial({ color: 0xb0794d, roughness: 0.85 });
+  [-0.62, 0.62].forEach((sx) => {
+    [-1, 1].forEach((s) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 1.62, 8), wood);
+      leg.position.set(sx, 0.78, s * 0.28);
+      leg.rotation.x = s * 0.34;
+      leg.castShadow = true;
+      g.add(leg);
+    });
+  });
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 10), wood);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.y = SWING.h;
+  bar.castShadow = true;
+  g.add(bar);
+  const arm = new THREE.Group();
+  arm.position.y = SWING.h;
+  [-0.28, 0.28].forEach((sx) => {
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, SWING.L, 6), ropeM);
+    rope.position.set(sx, -SWING.L / 2, 0);
+    arm.add(rope);
+  });
+  const seat = new THREE.Group();
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.05, 0.3), seatM);
+  plank.castShadow = true;
+  seat.add(plank);
+  seat.position.y = -SWING.L;
+  arm.add(seat);
+  g.add(arm);
+  g.position.set(SWING.x, 0, SWING.z);
+  g.rotation.y = swing.baseYaw;
+  world.add(g);
+  swing.arm = arm;
+  swing.seat = seat;
+  swing.g = g;
 }
-// 求某点最近的禁区外合法点（最多迭代 3 次处理禁区相邻的情况）
-function nearestOutsidePoint(x, z, radius) {
-  let px = x, pz = z;
-  for (let k = 0; k < 3; k++) {
-    let moved = false;
-    for (const o of OBSTACLES) {
-      const dx = px - o.x, dz = pz - o.z;
-      const d = Math.hypot(dx, dz) || 1e-4;
-      const min = o.r + radius;
-      if (d < min) { px = o.x + dx / d * min; pz = o.z + dz / d * min; moved = true; }
+const _seatPos = new THREE.Vector3();
+let pendingFacility = null;   // v1.2: 想去坐的设施（'swing'）
+// 某个地面位置的实际地面高度（蹦床垫面更高）
+function groundHeightAt(x, z) {
+  if (Math.hypot(x - TRAMP.x, z - TRAMP.z) < TRAMP.r) return TRAMP.top;
+  return GROUND_Y;
+}
+function updateSwing(dt, t) {
+  swing.pushCd -= dt;
+  swing.jigCd -= dt;
+  const acc = -(9.8 / SWING.L) * Math.sin(swing.angle);
+  if (swing.mounted) {
+    // 荡秋千：到底部时“荡一下”补能量，越荡越高
+    swing.pumpT -= dt;
+    swing.vel += (acc - 0.3 * swing.vel) * dt;
+    if (Math.abs(swing.angle) < 0.12 && swing.pumpT <= 0 && Math.abs(swing.vel) > 0.4) {
+      swing.pumpT = 0.55;
+      swing.vel += Math.sign(swing.vel) * 0.5;
+      if (Math.random() < 0.35) spawnNote();
+      blip(500 + Math.random() * 120, 860, 0.08, 0.045);
     }
-    if (!moved) break;
+  } else {
+    // 空秋千：慢慢摆回静止
+    swing.vel += (acc - 0.55 * swing.vel) * dt;
   }
-  return { x: clamp(px, -BOUND + 0.3, BOUND - 0.3), z: clamp(pz, -BOUND + 0.3, BOUND - 0.3) };
+  swing.angle = clamp(swing.angle + swing.vel * dt, -1.1, 1.1);
+  swing.arm.rotation.x = swing.angle;
+  // 蹦床垫子：柔和下陷 + 回弹（弹簧）
+  springUpdate(tramp.sag, 130, 7, dt);
+  tramp.sag.x = clamp(tramp.sag.x, -0.2, 2.2);
+  const m = tramp.matMesh;
+  m.position.y = 0.345 - tramp.sag.x * 0.045;
+  m.scale.set(1 + tramp.sag.x * 0.02, 1 - tramp.sag.x * 0.06, 1 + tramp.sag.x * 0.02);
+}
+function startSwing() {
+  swing.mounted = true;
+  slime.mode = 'swing';
+  slime.vel.set(0, 0, 0);
+  slimeGroup.rotation.x = 0;
+  swing.angle = 0;
+  swing.vel = 0.9;
+  say('荡秋千咯～');
+  toast('🎯 荡秋千！戳它会推得更高，点地面跳下来');
+  mood.happy = Math.min(100, mood.happy + 10);
+  blip(520, 880, 0.15, 0.1);
+}
+function endSwing() {
+  if (!swing.mounted) return;
+  swing.mounted = false;
+  slime.mode = 'free';
+  slimeGroup.rotation.x = 0;
+  // 带着摆动的速度飞出去
+  const tv = clamp(swing.vel * 0.8, -3, 3);
+  slime.vel.set(Math.sin(swing.baseYaw) * tv, 2.6, Math.cos(swing.baseYaw) * tv);
+  slime.wob1.v += 4;
+  blip(400, 220, 0.16, 0.1);
 }
 
 // 天上的云（缓慢漂移）
@@ -465,6 +811,47 @@ function makeCloud() {
   clouds.push(c);
   scene.add(c);
 });
+
+// 炊烟（烟囱定时冒烟，随风飘散）
+const smokeTex = makeCanvasTexture((ctx, s) => {
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,255,255,0.85)');
+  g.addColorStop(0.55, 'rgba(245,248,252,0.4)');
+  g.addColorStop(1, 'rgba(245,248,252,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+}, 128);
+const smokePool = [];
+for (let i = 0; i < 7; i++) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false }));
+  sp.visible = false;
+  scene.add(sp);
+  smokePool.push({ sp, life: -1, drift: Math.random() * 10 });
+}
+let smokeT = 0.6;
+function updateSmoke(dt, t) {
+  if (!smokeAnchor) return;
+  smokeT -= dt;
+  if (smokeT <= 0) {
+    smokeT = 0.7;
+    const it = smokePool.find(s => s.life < 0);
+    if (it) {
+      it.life = 0;
+      smokeAnchor.getWorldPosition(it.sp.position);
+      it.sp.visible = true;
+    }
+  }
+  for (const it of smokePool) {
+    if (it.life < 0) continue;
+    it.life += dt / 3.4;
+    if (it.life >= 1) { it.life = -1; it.sp.visible = false; continue; }
+    it.sp.position.y += 0.32 * dt;
+    it.sp.position.x += (0.09 + Math.sin(t + it.drift) * 0.03) * dt;
+    const s = 0.14 + it.life * 0.55;
+    it.sp.scale.set(s, s, 1);
+    it.sp.material.opacity = 0.4 * Math.sin(Math.min(1, it.life * 3) * Math.PI * 0.5) * (1 - it.life);
+  }
+}
 
 // 夜空：星星 + 月亮
 const starsMat = new THREE.PointsMaterial({
@@ -599,9 +986,315 @@ function updateWeatherFx(dt, t) {
   if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
 }
 
+/* ================= v1.2 暖调氛围：斜窗光 + 接触软阴影 =================
+   学 Jelly Baby“温暖木桌”的居家的感觉：白天有一片缓缓晃动的窗光洒在草地上，
+   史莱姆脚下加一层柔和的接触阴影，小世界更有阳光晒进窗户的味道。 */
+const winLightTex = makeCanvasTexture((ctx, s) => {
+  ctx.save();
+  ctx.translate(s / 2, s / 2);
+  ctx.rotate(-0.32);
+  const g = ctx.createLinearGradient(0, -s * 0.42, 0, s * 0.42);
+  g.addColorStop(0, 'rgba(255,208,140,0)');
+  g.addColorStop(0.5, 'rgba(255,208,140,0.85)');
+  g.addColorStop(1, 'rgba(255,208,140,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-s * 0.30, -s * 0.42, s * 0.60, s * 0.84);
+  // 窗棂：从光斑里“擦”出十字格
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(-s * 0.315, -s * 0.012, s * 0.63, s * 0.024);
+  ctx.fillRect(-s * 0.012, -s * 0.43, s * 0.024, s * 0.86);
+  ctx.restore();
+});
+const winLight = new THREE.Mesh(
+  new THREE.PlaneGeometry(8.5, 8.5),
+  new THREE.MeshBasicMaterial({
+    map: winLightTex, transparent: true, opacity: 0.16,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  })
+);
+winLight.rotation.x = -Math.PI / 2;
+winLight.rotation.z = 0.5;
+winLight.position.y = 0.035;
+scene.add(winLight);
+
+const blobShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.55, 1.55),
+  new THREE.MeshBasicMaterial({
+    map: makeCanvasTexture((ctx, s) => {
+      const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(30,52,40,0.42)');
+      g.addColorStop(0.65, 'rgba(30,52,40,0.2)');
+      g.addColorStop(1, 'rgba(30,52,40,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+    }),
+    transparent: true, depthWrite: false
+  })
+);
+blobShadow.rotation.x = -Math.PI / 2;
+blobShadow.position.y = 0.032;
+scene.add(blobShadow);
+
+function updateAtmosphere(dt, t) {
+  winLight.rotation.z = 0.5 + Math.sin(t * 0.05) * 0.04;   // 光斑慢慢晃
+  const wdim = Math.max(0.25, 1 - 0.5 * weather.rainAmt - 0.3 * weather.snowAmt);
+  winLight.material.opacity = 0.16 * (1 - dnState.v * 0.75) * (0.45 + 0.55 * wdim);
+  const hAir = Math.max(0, slime.pos.y - GROUND_Y);
+  blobShadow.position.x = slime.pos.x;
+  blobShadow.position.z = slime.pos.z;
+  const bs = (1 + hAir * 0.22) * slime.grow;
+  blobShadow.scale.set(bs, bs, 1);
+  blobShadow.material.opacity = clamp(0.5 - hAir * 0.18, 0.1, 0.5);
+}
+// v1.3 世界细节：树冠轻摆 + 水面波光 + 炊烟
+function updateWorldDetail(dt, t) {
+  for (const tr of treesSway) {
+    tr.g.rotation.z = Math.sin(t * 0.7 + tr.ph) * 0.018;
+    tr.g.rotation.x = Math.cos(t * 0.55 + tr.ph * 1.3) * 0.012;
+  }
+  if (pondGlints) {
+    pondGlints.material.map.offset.x = t * 0.015;
+    pondGlints.material.map.offset.y = Math.sin(t * 0.2) * 0.04;
+  }
+  updateSmoke(dt, t);
+}
+
+/* ================= 第四波：摘星挑战 / 变形 / 成就 / 小鱼 ================= */
+
+// —— 成就系统（localStorage 持久化） ——
+const ACH_DEFS = {
+  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
+  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
+  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
+  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
+  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
+  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
+  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
+  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
+  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
+};
+let achData;
+try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
+achData.unlocked = achData.unlocked || {};
+achData.c = achData.c || {};
+function saveAch() {
+  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
+}
+function achCelebrate(def) {
+  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
+  blip(660, 1320, 0.14, 0.1);
+  blip(880, 1760, 0.16, 0.1, 0.12);
+}
+function achInc(id, add) {
+  const def = ACH_DEFS[id];
+  if (!def || achData.unlocked[id]) return;
+  achData.c[id] = (achData.c[id] || 0) + add;
+  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
+  saveAch();
+  if (achData.unlocked[id]) achCelebrate(def);
+}
+function achUnlockNow(id) {
+  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
+  achData.unlocked[id] = true;
+  saveAch();
+  achCelebrate(ACH_DEFS[id]);
+}
+
+// —— 摘星挑战 ——
+const starShapeGeo = (() => {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.17 : 0.075;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
+})();
+const starGame = { active: false, stars: [], collected: 0, total: 5 };
+function toggleStarGame() {
+  ensureAudio();
+  if (starGame.active) {
+    starGame.stars.forEach(s => scene.remove(s.mesh));
+    starGame.stars = [];
+    starGame.active = false;
+    document.getElementById('starHud').classList.remove('show');
+    toast('摘星挑战取消');
+    blip(420, 240, 0.15, 0.08);
+    return;
+  }
+  starGame.active = true;
+  starGame.collected = 0;
+  starGame.stars = [];
+  for (let i = 0; i < starGame.total; i++) {
+    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
+    let x = 0, z = 0, ok = false, tries = 0;
+    while (!ok && tries < 40) {
+      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
+           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
+           !inPond(x, z);
+      tries++;
+    }
+    mesh.position.set(x, 0.55, z);
+    scene.add(mesh);
+    starGame.stars.push({ mesh, ph: Math.random() * 6 });
+  }
+  const hud = document.getElementById('starHud');
+  hud.textContent = '⭐ 0 / ' + starGame.total;
+  hud.classList.add('show');
+  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
+  say('摘星星咯！');
+  blip(520, 1040, 0.15, 0.1);
+}
+function collectStar(s) {
+  scene.remove(s.mesh);
+  starGame.collected++;
+  const hud = document.getElementById('starHud');
+  if (starGame.collected >= starGame.total) {
+    starGame.active = false;
+    hud.textContent = '⭐ 全部收集！';
+    setTimeout(() => hud.classList.remove('show'), 1400);
+    mood.happy = Math.min(100, mood.happy + 26);
+    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
+      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
+    for (let k = 0; k < 4; k++) {
+      spawnHeart(new THREE.Vector3(
+        slime.pos.x + (Math.random() - 0.5) * 0.8,
+        slime.pos.y + 1.2 + k * 0.2,
+        slime.pos.z));
+    }
+    toast('⭐ 全部收集完成！史莱姆太棒了！');
+    say('全部拿到啦！');
+    blip(523, 523, 0.12, 0.1);
+    blip(659, 659, 0.12, 0.1, 0.12);
+    blip(784, 784, 0.12, 0.1, 0.24);
+    blip(1047, 1047, 0.25, 0.12, 0.36);
+    achInc('star1', 1);
+  } else {
+    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
+    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
+    blip(880, 1560, 0.12, 0.12);
+    mood.happy = Math.min(100, mood.happy + 4);
+  }
+}
+function updateStarGame(dt, t) {
+  if (!starGame.active) return;
+  for (const s of starGame.stars) {
+    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
+    s.mesh.rotation.y += dt * 1.6;
+  }
+}
+
+// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
+const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
+let slimeShapeIdx = 0;
+const shapeCache = {};
+function getShapeGeo(i) {
+  if (shapeCache[i]) return shapeCache[i];
+  let g;
+  if (i === 1) {                                    // 小方块
+    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
+    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
+    g.computeVertexNormals();
+  } else if (i === 2) {                             // 甜甜圈
+    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
+    g.rotateX(Math.PI / 2);
+    g.translate(0, -0.1525, 0);
+    g.computeVertexNormals();
+  } else if (i === 3) {                             // 布丁
+    const pts = [
+      new THREE.Vector2(0.001, 0),
+      new THREE.Vector2(0.72, 0),
+      new THREE.Vector2(0.95, 0.26),
+      new THREE.Vector2(0.82, 0.6),
+      new THREE.Vector2(0.32, 0.9),
+      new THREE.Vector2(0.001, 0.99),
+    ];
+    g = new THREE.LatheGeometry(pts, 26);
+    g.scale(1.05, 1.42, 1.05);
+    g.translate(0, -0.6725, 0);
+    g.computeVertexNormals();
+  } else {
+    g = slimeGeoMerged;                             // 圆滚滚
+  }
+  shapeCache[i] = g;
+  return g;
+}
+function cycleShape() {
+  ensureAudio();
+  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
+  const g = getShapeGeo(slimeShapeIdx);
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  spawnSparkles(6);
+  say('变——！');
+  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
+  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
+}
+
+// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
+const fishes = [];
+{
+  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
+    body.rotation.x = Math.PI / 2;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = -0.13;
+    g.add(body, tail);
+    g.visible = false;
+    scene.add(g);
+    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
+  }
+}
+function fishJump() {
+  const f = fishes.find(f => !f.jumping);
+  if (!f) return;
+  const a = Math.random() * Math.PI * 2;
+  const r0 = Math.random() * 0.5;
+  const a2 = a + 1.2 + Math.random() * 1.2;
+  const r1 = 0.3 + Math.random() * 0.5;
+  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
+  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
+  f.jumping = true;
+  f.pt = 0;
+  f.g.visible = true;
+  spawnRipple(f.p0.x, f.p0.z, 0.4);
+  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
+  blip(320, 720, 0.08, 0.06);
+}
+function updateFishes(dt) {
+  for (const f of fishes) {
+    if (f.jumping) {
+      f.pt += dt / 0.85;
+      if (f.pt >= 1) {
+        f.jumping = false;
+        f.g.visible = false;
+        f.cool = 2.5 + Math.random() * 4.5;
+        spawnRipple(f.p1.x, f.p1.z, 0.35);
+      } else {
+        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
+        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
+        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
+        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
+      }
+    } else {
+      f.cool -= dt;
+      if (f.cool <= 0) fishJump();
+    }
+  }
+}
+
 /* ================= 史莱姆本体 ================= */
 // 1) 果冻身体：球体压平底 + 顶点级弹簧抖动
-const slimeGeo = new THREE.SphereGeometry(0.9, 40, 28);
+const slimeGeo = new THREE.SphereGeometry(0.9, 48, 32);
 {
   const p = slimeGeo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -616,6 +1309,7 @@ slimeGeoMerged.computeVertexNormals();
 slimeGeoMerged.computeBoundingSphere();
 let basePos = Float32Array.from(slimeGeoMerged.attributes.position.array);
 let baseNor = Float32Array.from(slimeGeoMerged.attributes.normal.array);
+
 
 const slimeMat = new THREE.MeshPhysicalMaterial({
   color: 0x54c8ff,
@@ -638,7 +1332,7 @@ const slimeGroup = new THREE.Group();
 slimeGroup.add(slimeMesh);
 scene.add(slimeGroup);
 
-/* ================= 表情：眼睛（会看鼠标、会眨眼）+ 嘴巴 + 腮红 ================= */
+// 2) 表情：眼睛（会看鼠标、会眨眼）+ 嘴巴 + 腮红
 const matEyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
 const matPupil    = new THREE.MeshStandardMaterial({ color: 0x1d2430, roughness: 0.3 });
 const matMouth    = new THREE.MeshStandardMaterial({ color: 0x2b2b33, roughness: 0.35 });
@@ -1088,9 +1782,7 @@ function splashSound() {
     const src = actx.createBufferSource();
     src.buffer = buf;
     const f = actx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = 900;
-    f.Q.value = 0.8;
+    f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.8;
     const g = actx.createGain();
     g.gain.value = 0.25;
     src.connect(f).connect(g).connect(actx.destination);
@@ -1106,8 +1798,7 @@ muteBtn.addEventListener('click', () => {
 });
 
 /* ================= 全局状态 ================= */
-const slime = {
-  mode: 'free',                                   // free | grab | hop
+const slime = {  mode: 'free',                                   // free | grab | hop
   pos: new THREE.Vector3(0, GROUND_Y, 0),
   vel: new THREE.Vector3(),
   prev: new THREE.Vector3(),
@@ -1121,11 +1812,13 @@ const slime = {
   yaw: 0,
   moodT: 0,
   blinkT: -1, nextBlink: 1.8,
+  // 新增
   grow: 1,          // 吃苹果变大
   danceT: 0, danceBaseYaw: 0, danceScale: 1, noteT: 0, beat: 0,
   chompT: 0,        // 咀嚼动画
   hopCooldown: 0,
   idleHopT: 6,      // 开心时原地小跳 / 难过时叹气
+  wanderT: 9,       // v1.2: 闲逛计时（没人理会自己溜达）
   zT: 3,            // 夜晚打瞌睡 Z 计时
   zoomT: 0,         // 吃辣椒后的乱窜时间
   zoomDirT: 0,
@@ -1134,7 +1827,7 @@ slime.prev.copy(slime.pos);
 
 const mood = { happy: 62 };      // 心情值 0-100
 const pet = { active: false, pulse: 0, toastShown: false };
-const foods = [];                // 场景中的食物
+const foods = [];                // 场景中的苹果
 const babies = [];               // 史莱姆宝宝
 const dnState = { v: 0, target: 0 }; // 昼夜因子 0=白天 1=夜晚
 let lastBabyBlip = 0;
@@ -1188,6 +1881,14 @@ function releaseSlime() {
   blip(300, 140, 0.18, 0.12);
 }
 function pokeSlime() {
+  // v1.2: 在秋千上戳它 = 推它一把，荡得更高
+  if (slime.mode === 'swing') {
+    swing.vel += (swing.vel >= 0 ? 1 : -1) * 1.0;
+    mood.happy = Math.min(100, mood.happy + 2);
+    say('再高一点！');
+    blip(420, 760, 0.12, 0.1);
+    return;
+  }
   slime.mode = 'free';
   slime.vel.set((Math.random() - 0.5) * 1.2, 4.8, (Math.random() - 0.5) * 1.2);
   slime.sq.v -= 3.2;
@@ -1236,14 +1937,12 @@ function computeHopLeg() {
   blip(170 + H.i * 35, 330, 0.09, 0.08);
 }
 function startHops(target) {
-  if (slime.mode === 'grab' || slime.pos.y > 0.6 || slime.danceT > 0 || pet.active) return;
+  if (slime.mode !== 'free' || slime.pos.y > 0.6 || slime.danceT > 0 || pet.active) return;
   const d = Math.hypot(target.x - slime.pos.x, target.z - slime.pos.z);
   if (d < 0.35) return;
   slime.mode = 'hop';
   const H = slime.hop;
-  // 目标点落在障碍物（树 / 小屋）里时，自动重定向到最近的禁区外
-  const safe = nearestOutsidePoint(target.x, target.z, 0.8);
-  H.target.set(clamp(safe.x, -BOUND, BOUND), GROUND_Y, clamp(safe.z, -BOUND, BOUND));
+  H.target.set(clamp(target.x, -BOUND, BOUND), GROUND_Y, clamp(target.z, -BOUND, BOUND));
   H.count = clamp(Math.ceil(d / 1.15), 1, 4);
   H.i = 0;
   H.done = false;
@@ -1267,11 +1966,8 @@ function spawnFood() {
   g.add(body, stem, leaf);
   const a = Math.random() * Math.PI * 2;
   const r = 1.4 + Math.random() * 0.9;
-  const safeFood = nearestOutsidePoint(
-    clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3),
-    clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3), 0.7);
-  const px = safeFood.x;
-  const pz = safeFood.z;
+  const px = clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3);
+  const pz = clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3);
   const f = {
     type: 'apple',
     g, pos: new THREE.Vector3(px, 4.2, pz), vel: new THREE.Vector3(),
@@ -1338,11 +2034,8 @@ function spawnChili() {
   g.add(body, stem);
   const a = Math.random() * Math.PI * 2;
   const r = 1.4 + Math.random() * 0.9;
-  const safeChili = nearestOutsidePoint(
-    clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3),
-    clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3), 0.7);
-  const px = safeChili.x;
-  const pz = safeChili.z;
+  const px = clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3);
+  const pz = clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3);
   const f = {
     type: 'chili',
     g, pos: new THREE.Vector3(px, 3.8, pz), vel: new THREE.Vector3(),
@@ -1408,12 +2101,11 @@ function toggleBall() {
   ring.rotation.x = Math.PI / 2.2;
   g.add(body, ring);
   const a = Math.random() * Math.PI * 2;
-  const safeBall = nearestOutsidePoint(
-    clamp(slime.pos.x + Math.cos(a) * 1.5, -BOUND + 0.3, BOUND - 0.3),
-    clamp(slime.pos.z + Math.sin(a) * 1.5, -BOUND + 0.3, BOUND - 0.3), 0.5);
   ball = {
     g,
-    pos: new THREE.Vector3(safeBall.x, 2.4, safeBall.z),
+    pos: new THREE.Vector3(
+      clamp(slime.pos.x + Math.cos(a) * 1.5, -BOUND + 0.3, BOUND - 0.3), 2.4,
+      clamp(slime.pos.z + Math.sin(a) * 1.5, -BOUND + 0.3, BOUND - 0.3)),
     vel: new THREE.Vector3(), target: new THREE.Vector3(), mode: 'free'
   };
   g.position.copy(ball.pos);
@@ -1463,18 +2155,6 @@ function updateBall(dt) {
       spawnDebris(new THREE.Vector3(ball.pos.x, 0.1, ball.pos.z), 5, [0x8fd8ff, 0xc8ecff], 8);
       spawnRipple(ball.pos.x, ball.pos.z, 0.4);
       splashSound();
-    }
-    // 落在池塘里 → 漂浮轻晃（不会沉底）
-    if (inPond(ball.pos.x, ball.pos.z) && ball.pos.y <= 0.26) {
-      ball.pos.y = 0.26 + Math.sin(performance.now() * 0.002 + ball.pos.x * 3) * 0.02;
-      if (ball.vel.y < 0) ball.vel.y = 0;
-      ball.vel.x *= Math.exp(-2 * dt);
-      ball.vel.z *= Math.exp(-2 * dt);
-    }
-    // 推出障碍物禁区（发生推挤时给一点反弹）
-    if (pushOutOfObstacles(ball.pos, 0.22) && ball.mode === 'free') {
-      ball.vel.x *= -0.4;
-      ball.vel.z *= -0.4;
     }
   }
   ball.g.position.copy(ball.pos);
@@ -1623,8 +2303,6 @@ function updateBabies(dt, t) {
           b.vel[ax] *= -0.45;
         }
       }
-      // 推出障碍物禁区，防止宝宝钻进树 / 小屋
-      pushOutOfObstacles(b.pos, 0.35);
       // 跟随领队（排成小尾巴）
       const L = b.leader;
       if (L) {
@@ -1746,6 +2424,14 @@ function applyDayNight(dt) {
   winMat.emissiveIntensity = dn * 1.4;
   houseLight.intensity = dn * 1.6;
 }
+const nightBtn = document.getElementById('nightBtn');
+nightBtn.addEventListener('click', () => {
+  ensureAudio();
+  dnState.target = dnState.target === 0 ? 1 : 0;
+  nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
+  toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  blip(dnState.target === 1 ? 400 : 600, dnState.target === 1 ? 180 : 1000, 0.25, 0.1);
+});
 
 /* ================= 指针交互 ================= */
 const raycaster = new THREE.Raycaster();
@@ -1783,6 +2469,13 @@ function pickTarget() {
     hitSphere.center.copy(f.pos);
     if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'apple', obj: f };
   }
+  // v1.2: 秋千（没坐上去时可以点它）
+  if (!swing.mounted) {
+    swing.seat.getWorldPosition(_seatPos);
+    hitSphere.radius = 0.55;
+    hitSphere.center.copy(_seatPos);
+    if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'swing', obj: null };
+  }
   for (const bf of butterflies) {
     hitSphere.radius = 0.3;
     hitSphere.center.copy(bf.g.position);
@@ -1795,6 +2488,7 @@ function pickTarget() {
 window.addEventListener('pointerdown', (e) => {
   if (e.target !== canvas) return;
   ensureAudio();
+  slime.wanderT = 9;   // 玩家在互动，先别自己乱跑
   updateNdc(e);
   const hit = pickTarget();
   drag.active = true; drag.moved = false;
@@ -1812,13 +2506,13 @@ window.addEventListener('pointermove', (e) => {
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 7) {
     drag.moved = true;
     if (pet.active) pet.active = false;
-    if (drag.kind === 'slime' && slime.mode !== 'grab') grabSlime();
+    if (drag.kind === 'slime' && slime.mode === 'free') grabSlime();
     if (drag.kind === 'baby' && drag.obj && drag.obj.mode !== 'grab') grabBaby(drag.obj);
   }
   if (drag.kind === 'slime' && slime.mode === 'grab') {
     raycaster.setFromCamera(ndc, camera);
-    if (raycaster.ray.intersectPlane(dragPlane, _v)) {
-      slime.grabTarget.set(clamp(_v.x, -BOUND, BOUND), 0.95, clamp(_v.z, -BOUND, BOUND));
+    if (raycaster.ray.intersectPlane(slimeDragPlane, _v)) {
+      slime.grabTarget.set(clamp(_v.x, -BOUND, BOUND), clamp(_v.y, 0.45, 2.6), clamp(_v.z, -BOUND, BOUND));
     }
   } else if (drag.kind === 'baby' && drag.obj && drag.obj.mode === 'grab') {
     raycaster.setFromCamera(ndc, camera);
@@ -1862,13 +2556,33 @@ window.addEventListener('pointerup', (e) => {
     blip(400, 260, 0.08, 0.06);
   } else if (k === 'butterfly' && drag.obj) {
     if (!drag.moved && quick) dartButterfly(drag.obj);
+  } else if (k === 'swing') {
+    // v1.2: 点秋千——没坐就过去坐；坐着就推一把
+    if (!drag.moved && quick) {
+      if (slime.mode === 'swing') {
+        if (swing.pushCd <= 0) {
+          swing.pushCd = 0.3;
+          swing.vel += (swing.vel >= 0 ? 1 : -1) * 1.2;
+          mood.happy = Math.min(100, mood.happy + 2);
+          blip(460, 800, 0.1, 0.09);
+        }
+      } else {
+        pendingFacility = 'swing';
+        startHops(new THREE.Vector3(SWING.x, GROUND_Y, SWING.z));
+        toast('🎯 过去坐秋千咯～');
+        blip(600, 900, 0.1, 0.09);
+      }
+    }
   } else if (k === 'none') {
     if (!drag.moved && quick) {
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(groundPlane, _v)) {
         if (inPond(_v.x, _v.z)) fishJump();
         if (plantMode) plantFlower(_v.x, _v.z);
-        else startHops(_v);
+        else {
+          if (slime.mode === 'swing') { endSwing(); toast('跳下来啦！'); }
+          startHops(_v);
+        }
       }
     }
   }
@@ -1892,7 +2606,6 @@ window.addEventListener('keydown', (e) => {
 
 /* ================= 每帧更新：史莱姆 ================= */
 const DANCE_NOTES = [523, 659, 784, 1047];
-let vertsDeformed = true;   // 顶点当前是否处于形变状态（用于静止时跳过逐顶点更新）
 function updateSlime(dt, t) {
   const S = slime;
   S.prev.copy(S.pos);
@@ -1912,7 +2625,7 @@ function updateSlime(dt, t) {
     const H = S.hop;
     H.t += dt / H.dur;
     if (H.t >= 1) {
-      S.pos.set(H.to.x, GROUND_Y, H.to.z);
+      S.pos.set(H.to.x, groundHeightAt(H.to.x, H.to.z), H.to.z);
       landFx(3.4);
       H.i++;
       if (H.done || H.i >= H.count) { S.mode = 'free'; S.vel.set(0, 0, 0); }
@@ -1921,8 +2634,17 @@ function updateSlime(dt, t) {
       S.pos.x = lerp(H.from.x, H.to.x, H.t);
       S.pos.z = lerp(H.from.z, H.to.z, H.t);
       S.pos.y = GROUND_Y + 4 * H.h * H.t * (1 - H.t);
-      // 低空掠过时推出禁区，避免落进树冠 / 小屋里卡住
-      if (S.pos.y < 1.0) pushOutOfObstacles(S.pos, 0.55);
+    }
+  } else if (S.mode === 'swing') {
+    // v1.2: 坐在秋千上，位置跟随座椅、身体随摆动倾斜
+    swing.seat.getWorldPosition(_seatPos);
+    S.pos.set(_seatPos.x, _seatPos.y + 0.09, _seatPos.z);
+    S.vel.set(0, 0, 0);
+    mood.happy = Math.min(100, mood.happy + dt * 2.5);   // 荡秋千很开心
+    slimeGroup.rotation.x = -swing.angle * 0.35;
+    if (Math.abs(swing.angle) > 0.55 && swing.jigCd <= 0) {
+      swing.jigCd = 0.65;
+      S.sq.v -= 1.1;
     }
   } else if (S.mode === 'free' && S.danceT > 0) {
     // 跳舞：节奏摆动 + 小跳 + 音符
@@ -1960,10 +2682,27 @@ function updateSlime(dt, t) {
     }
     S.vel.y -= 26 * dt;
     S.pos.addScaledVector(S.vel, dt);
-    if (S.pos.y <= GROUND_Y) {
-      S.pos.y = GROUND_Y;
+    const floorY = groundHeightAt(S.pos.x, S.pos.z);
+    if (S.pos.y <= floorY) {
+      S.pos.y = floorY;
       const iv = -S.vel.y;
-      if (iv > 1.4) {
+      if (floorY > GROUND_Y && iv > 2.2) {
+        // v1.2: 蹦床——越弹越高！
+        tramp.bounces++;
+        tramp.sag.v += 5;
+        S.vel.y = Math.min(12.5, 7 + tramp.bounces * 1.1);
+        S.sq.v -= 2.2;
+        mood.happy = Math.min(100, mood.happy + 1.5);
+        blip(150 + tramp.bounces * 40, 340 + tramp.bounces * 60, 0.16, 0.12);
+        if (tramp.bounces === 1) { say('弹起来咯！'); toast('🤸 蹦床时间！会越弹越高，点地面跳走'); }
+        else if (tramp.bounces === 4) say('飞高高！');
+        else if (tramp.bounces % 6 === 0) say('停不下来啦～');
+      } else if (floorY > GROUND_Y) {
+        // 蹦床上轻轻落下 → 起弹
+        S.vel.y = 7;
+        tramp.sag.v += 3;
+        blip(170, 320, 0.12, 0.08);
+      } else if (iv > 1.4) {
         S.vel.y = iv * 0.36;                    // 弹起
         landFx(iv);
       } else {
@@ -1973,8 +2712,6 @@ function updateSlime(dt, t) {
         if (iv > 0.4) landFx(iv * 0.6);
       }
     }
-    // 贴地时推出障碍物禁区（树 / 小屋），防止穿模卡住
-    if (S.pos.y < 0.8) pushOutOfObstacles(S.pos, 0.55);
     for (const ax of ['x', 'z']) {              // 边界反弹
       if (Math.abs(S.pos[ax]) > BOUND) {
         S.pos[ax] = Math.sign(S.pos[ax]) * BOUND;
@@ -2015,34 +2752,21 @@ function updateSlime(dt, t) {
   );
 
   // 顶点抖动：沿原始法线叠加两个衰减正弦模态 + 顶部滞后偏移
-  // 性能优化：抖动 / 倾斜都趋近 0 时跳过逐顶点更新（静止时不空耗性能）
   const curGeo = slimeMesh.geometry;
-  const wobAmp = Math.abs(S.wob1.x) + Math.abs(S.wob2.x);
-  const leanAmp = Math.abs(S.lean.x) + Math.abs(S.lean.z);
-  const deformed = wobAmp > 0.002 || leanAmp > 0.02;
-  if (deformed) {
-    const posArr = curGeo.attributes.position.array;
-    for (let i = 0; i < posArr.length; i += 3) {
-      const bx = basePos[i], by = basePos[i + 1], bz = basePos[i + 2];
-      const nx = baseNor[i], ny = baseNor[i + 1], nz = baseNor[i + 2];
-      const h = clamp((by + 0.6725) / 1.5725, 0, 1);
-      const d = S.wob1.x * Math.sin(t * 13 + by * 2.6 + bx * 1.9 + bz * 1.3)
-              + S.wob2.x * Math.sin(t * 17.3 + bx * 2.2 - bz * 1.7);
-      const hh = h * h;
-      posArr[i]     = bx + nx * d + S.lean.x * hh;
-      posArr[i + 1] = by + ny * d;
-      posArr[i + 2] = bz + nz * d + S.lean.z * hh;
-    }
-    curGeo.attributes.position.needsUpdate = true;
-    curGeo.computeVertexNormals();
-    vertsDeformed = true;
-  } else if (vertsDeformed) {
-    // 刚从运动进入静止：把顶点恢复成原始形状，之后不再逐帧更新
-    curGeo.attributes.position.array.set(basePos);
-    curGeo.attributes.position.needsUpdate = true;
-    curGeo.computeVertexNormals();
-    vertsDeformed = false;
+  const posArr = curGeo.attributes.position.array;
+  for (let i = 0; i < posArr.length; i += 3) {
+    const bx = basePos[i], by = basePos[i + 1], bz = basePos[i + 2];
+    const nx = baseNor[i], ny = baseNor[i + 1], nz = baseNor[i + 2];
+    const h = clamp((by + 0.6725) / 1.5725, 0, 1);
+    const d = S.wob1.x * Math.sin(t * 13 + by * 2.6 + bx * 1.9 + bz * 1.3)
+            + S.wob2.x * Math.sin(t * 17.3 + bx * 2.2 - bz * 1.7);
+    const hh = h * h;
+    posArr[i]     = bx + nx * d + S.lean.x * hh;
+    posArr[i + 1] = by + ny * d;
+    posArr[i + 2] = bz + nz * d + S.lean.z * hh;
   }
+  curGeo.attributes.position.needsUpdate = true;
+  curGeo.computeVertexNormals();
 
   slimeGroup.updateMatrixWorld(true);
 }
@@ -2089,7 +2813,7 @@ function updateFace(dt, t) {
 
   // 瞳孔跟随鼠标（转到史莱姆本地坐标计算）
   raycaster.setFromCamera(ndc, camera);
-  const ok = raycaster.ray.intersectPlane(eyePlane, _v);
+  let ok = raycaster.ray.intersectPlane(eyePlane, _v);
   if (!ok) _v.copy(camera.position);
   slimeGroup.worldToLocal(_v);
   _v.sub(new THREE.Vector3(0, 0.7, 0)).normalize();
@@ -2101,238 +2825,6 @@ function updateFace(dt, t) {
       eye.n.y * 0.082 + eye.right.y * px + eye.up.y * py,
       eye.n.z * 0.082 + eye.right.z * px + eye.up.z * py
     );
-  }
-}
-
-/* ================= 第四波逻辑：成就 / 摘星 / 变形 / 小鱼 ================= */
-const ACH_DEFS = {
-  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
-  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
-  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
-  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
-  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
-  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
-  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
-  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
-  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
-};
-let achData;
-try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
-achData.unlocked = achData.unlocked || {};
-achData.c = achData.c || {};
-function saveAch() {
-  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
-}
-function achCelebrate(def) {
-  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
-  blip(660, 1320, 0.14, 0.1);
-  blip(880, 1760, 0.16, 0.1, 0.12);
-}
-function achInc(id, add) {
-  const def = ACH_DEFS[id];
-  if (!def || achData.unlocked[id]) return;
-  achData.c[id] = (achData.c[id] || 0) + add;
-  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
-  saveAch();
-  if (achData.unlocked[id]) achCelebrate(def);
-}
-function achUnlockNow(id) {
-  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
-  achData.unlocked[id] = true;
-  saveAch();
-  achCelebrate(ACH_DEFS[id]);
-}
-
-// —— 摘星挑战 ——
-const starShapeGeo = (() => {
-  const s = new THREE.Shape();
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 0.17 : 0.075;
-    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
-    const x = Math.cos(a) * r, y = Math.sin(a) * r;
-    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
-  }
-  s.closePath();
-  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
-})();
-const starGame = { active: false, stars: [], collected: 0, total: 5 };
-function toggleStarGame() {
-  ensureAudio();
-  if (starGame.active) {
-    starGame.stars.forEach(s => scene.remove(s.mesh));
-    starGame.stars = [];
-    starGame.active = false;
-    document.getElementById('starHud').classList.remove('show');
-    toast('摘星挑战取消');
-    blip(420, 240, 0.15, 0.08);
-    return;
-  }
-  starGame.active = true;
-  starGame.collected = 0;
-  starGame.stars = [];
-  for (let i = 0; i < starGame.total; i++) {
-    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
-    let x = 0, z = 0, ok = false, tries = 0;
-    while (!ok && tries < 40) {
-      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
-      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
-      const safe = nearestOutsidePoint(x, z, 0.5);
-      x = safe.x; z = safe.z;
-      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
-           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
-           !inPond(x, z);
-      tries++;
-    }
-    mesh.position.set(x, 0.55, z);
-    scene.add(mesh);
-    starGame.stars.push({ mesh, ph: Math.random() * 6 });
-  }
-  const hud = document.getElementById('starHud');
-  hud.textContent = '⭐ 0 / ' + starGame.total;
-  hud.classList.add('show');
-  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
-  say('摘星星咯！');
-  blip(520, 1040, 0.15, 0.1);
-}
-function collectStar(s) {
-  scene.remove(s.mesh);
-  starGame.collected++;
-  const hud = document.getElementById('starHud');
-  if (starGame.collected >= starGame.total) {
-    starGame.active = false;
-    hud.textContent = '⭐ 全部收集！';
-    setTimeout(() => hud.classList.remove('show'), 1400);
-    mood.happy = Math.min(100, mood.happy + 26);
-    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
-      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
-    for (let k = 0; k < 4; k++) {
-      spawnHeart(new THREE.Vector3(
-        slime.pos.x + (Math.random() - 0.5) * 0.8,
-        slime.pos.y + 1.2 + k * 0.2,
-        slime.pos.z));
-    }
-    toast('⭐ 全部收集完成！史莱姆太棒了！');
-    say('全部拿到啦！');
-    blip(523, 523, 0.12, 0.1);
-    blip(659, 659, 0.12, 0.1, 0.12);
-    blip(784, 784, 0.12, 0.1, 0.24);
-    blip(1047, 1047, 0.25, 0.12, 0.36);
-    achInc('star1', 1);
-  } else {
-    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
-    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
-    blip(880, 1560, 0.12, 0.12);
-    mood.happy = Math.min(100, mood.happy + 4);
-  }
-}
-function updateStarGame(dt, t) {
-  if (!starGame.active) return;
-  for (const s of starGame.stars) {
-    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
-    s.mesh.rotation.y += dt * 1.6;
-  }
-}
-
-// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
-const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
-let slimeShapeIdx = 0;
-const shapeCache = {};
-function getShapeGeo(i) {
-  if (shapeCache[i]) return shapeCache[i];
-  let g;
-  if (i === 1) {                                    // 小方块
-    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
-    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
-    g.computeVertexNormals();
-  } else if (i === 2) {                             // 甜甜圈
-    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
-    g.rotateX(Math.PI / 2);
-    g.translate(0, -0.1525, 0);
-    g.computeVertexNormals();
-  } else if (i === 3) {                             // 布丁
-    const pts = [
-      new THREE.Vector2(0.001, 0),
-      new THREE.Vector2(0.72, 0),
-      new THREE.Vector2(0.95, 0.26),
-      new THREE.Vector2(0.82, 0.6),
-      new THREE.Vector2(0.32, 0.9),
-      new THREE.Vector2(0.001, 0.99),
-    ];
-    g = new THREE.LatheGeometry(pts, 26);
-    g.scale(1.05, 1.42, 1.05);
-    g.translate(0, -0.6725, 0);
-    g.computeVertexNormals();
-  } else {
-    g = slimeGeoMerged;                             // 圆滚滚
-  }
-  shapeCache[i] = g;
-  return g;
-}
-function cycleShape() {
-  ensureAudio();
-  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
-  const g = getShapeGeo(slimeShapeIdx);
-  slimeMesh.geometry = g;
-  basePos = Float32Array.from(g.attributes.position.array);
-  baseNor = Float32Array.from(g.attributes.normal.array);
-  spawnSparkles(6);
-  say('变——！');
-  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
-  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
-}
-
-// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
-const fishes = [];
-{
-  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
-  for (let i = 0; i < 3; i++) {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
-    body.rotation.x = Math.PI / 2;
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
-    tail.rotation.x = -Math.PI / 2;
-    tail.position.z = -0.13;
-    g.add(body, tail);
-    g.visible = false;
-    scene.add(g);
-    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
-  }
-}
-function fishJump() {
-  const f = fishes.find(f => !f.jumping);
-  if (!f) return;
-  const a = Math.random() * Math.PI * 2;
-  const r0 = Math.random() * 0.5;
-  const a2 = a + 1.2 + Math.random() * 1.2;
-  const r1 = 0.3 + Math.random() * 0.5;
-  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
-  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
-  f.jumping = true;
-  f.pt = 0;
-  f.g.visible = true;
-  spawnRipple(f.p0.x, f.p0.z, 0.4);
-  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
-  blip(320, 720, 0.08, 0.06);
-}
-function updateFishes(dt) {
-  for (const f of fishes) {
-    if (f.jumping) {
-      f.pt += dt / 0.85;
-      if (f.pt >= 1) {
-        f.jumping = false;
-        f.g.visible = false;
-        f.cool = 2.5 + Math.random() * 4.5;
-        spawnRipple(f.p1.x, f.p1.z, 0.35);
-      } else {
-        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
-        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
-        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
-        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
-      }
-    } else {
-      f.cool -= dt;
-      if (f.cool <= 0) fishJump();
-    }
   }
 }
 
@@ -2368,7 +2860,7 @@ function updateGameLogic(dt, t) {
   // 下雨天天心情会慢慢变好（史莱姆喜欢雨天）
   if (weather.rainAmt > 0.7) mood.happy = Math.min(100, mood.happy + dt * 0.5);
 
-  // --- 自动去吃食物 ---
+  // --- 自动去吃苹果 ---
   if (S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 && S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0) {
     for (const f of foods) {
       if (f.eaten || !f.resting) continue;
@@ -2413,6 +2905,34 @@ function updateGameLogic(dt, t) {
     if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
       S.hopCooldown = 1.0;
       startHops(ball.pos);
+    }
+  }
+
+  // --- 设施：走到秋千旁就坐；离开蹦床后重置弹跳 ---
+  if (pendingFacility === 'swing' && S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05) {
+    const dSw = Math.hypot(S.pos.x - SWING.x, S.pos.z - SWING.z);
+    if (dSw < 0.55) { pendingFacility = null; startSwing(); }
+    else if (dSw > 1.8) pendingFacility = null;
+  }
+  if (Math.hypot(S.pos.x - TRAMP.x, S.pos.z - TRAMP.z) > TRAMP.r + 0.25) tramp.bounces = 0;
+
+  // --- 闲逛（v1.2）：没人理的时候自己溜达，学 Jelly Baby“闲不下来”的生命感 ---
+  if (drag.active || pet.active || S.mode !== 'free') S.wanderT = Math.max(S.wanderT, 6);
+  S.wanderT -= dt;
+  if (S.wanderT <= 0 && S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 &&
+      S.danceT <= 0 && S.chompT <= 0 && S.zoomT <= 0 && !pet.active) {
+    S.wanderT = 6 + Math.random() * 8;
+    const busy = starGame.active || foods.some(f => !f.eaten && f.resting) || (ball && ball.mode === 'free');
+    if (!busy && mood.happy > 45) {
+      if (Math.random() < 0.35) {           // 原地小跳，四处张望
+        S.vel.y = 2.6;
+        S.sq.v -= 1.2;
+        blip(300, 460, 0.08, 0.05);
+      } else {                              // 挑个附近的地方跳过去
+        const wa = Math.random() * Math.PI * 2;
+        const wr = 0.7 + Math.random() * 1.4;
+        startHops(new THREE.Vector3(S.pos.x + Math.cos(wa) * wr, GROUND_Y, S.pos.z + Math.sin(wa) * wr));
+      }
     }
   }
 
@@ -2517,10 +3037,29 @@ document.getElementById('plantBtn').addEventListener('click', () => {
 });
 // 捕获运行期错误，方便调试
 window.addEventListener('error', (e) => toast('⚠️ ' + e.message));
+// 调试探针（不影响玩法）：控制台输入 window.__debug() 查看史莱姆状态与屏幕坐标
+window.__debug = () => {
+  const p = _v.copy(slime.pos);
+  p.y += 0.7;
+  p.project(camera);
+  return {
+    world: slime.pos.toArray().map(n => +n.toFixed(2)),
+    vel: slime.vel.toArray().map(n => +n.toFixed(2)),
+    target: slime.grabTarget.toArray().map(n => +n.toFixed(2)),
+    screen: [Math.round((p.x + 1) / 2 * innerWidth), Math.round((1 - p.y) / 2 * innerHeight)],
+    mode: slime.mode,
+    frames: tickFrames,
+    mood: Math.round(mood.happy),
+  };
+};
+// 手动步进（调试用）：无头环境 / 自动化测试里可以用 __tick() 驱动模拟
+window.__tick = (n = 1) => { for (let i = 0; i < n; i++) tickBody(); };
 
 /* ================= 主循环 ================= */
 const clock = new THREE.Clock();
+let tickFrames = 0;
 function tickBody() {
+  tickFrames++;
   const dt = Math.min(clock.getDelta(), 0.033);
   const t = clock.elapsedTime;
 
@@ -2532,6 +3071,7 @@ function tickBody() {
   updatePlants(dt);
   updateStarGame(dt, t);
   updateFishes(dt);
+  updateSwing(dt, t);
   updateBabies(dt, t);
   updateButterflies(dt, t);
   updateFireflies(t);
@@ -2543,6 +3083,8 @@ function tickBody() {
   updateFloatPool(notePool, dt);
   updateFloatPool(zzzPool, dt);
   applyDayNight(dt);
+  updateAtmosphere(dt, t);
+  updateWorldDetail(dt, t);
   updateMoodUI();
 
   for (const c of clouds) {
