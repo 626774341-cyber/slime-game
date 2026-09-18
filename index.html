@@ -111,7 +111,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.5 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.7 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -154,14 +154,14 @@
   <button class="shapeTile" data-shape="2"><span class="ic">🍩</span><span class="lb">甜甜圈</span></button>
   <button class="shapeTile" data-shape="3"><span class="ic">🍮</span><span class="lb">布丁</span></button>
   <div class="sp-head">Emoji 果冻</div>
-  <button class="shapeTile" data-emoji="🐱"><span class="ic">🐱</span></button>
-  <button class="shapeTile" data-emoji="🐸"><span class="ic">🐸</span></button>
-  <button class="shapeTile" data-emoji="🐷"><span class="ic">🐷</span></button>
   <button class="shapeTile" data-emoji="🐻"><span class="ic">🐻</span></button>
   <button class="shapeTile" data-emoji="🐰"><span class="ic">🐰</span></button>
   <button class="shapeTile" data-emoji="🍄"><span class="ic">🍄</span></button>
-  <button class="shapeTile" data-emoji="🍓"><span class="ic">🍓</span></button>
-  <button class="shapeTile" data-emoji="🍙"><span class="ic">🍙</span></button>
+  <button class="shapeTile" data-emoji="🐥"><span class="ic">🐥</span></button>
+  <button class="shapeTile" data-emoji="🥕"><span class="ic">🥕</span></button>
+  <button class="shapeTile" data-emoji="🧁"><span class="ic">🧁</span></button>
+  <button class="shapeTile" data-emoji="🎃"><span class="ic">🎃</span></button>
+  <button class="shapeTile" data-emoji="🌵"><span class="ic">🌵</span></button>
 </div>
 
 <div id="toolbar">
@@ -2395,22 +2395,6 @@ const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg
 const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 const EMOJI_BUILDERS = {
-  '🐱': () => [                                  // 猫：圆头 + 圆润短耳（不挡眼睛）
-    part(mkBall(0.85), 1, 0.95, 0.95, 0, 0, 0),
-    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, -0.52, 0.8, 0, 0, 0.3),
-    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, 0.52, 0.8, 0, 0, -0.3),
-  ],
-  '🐸': () => [                                  // 青蛙：扁宽头 + 眼睛落在两只凸眼球上
-    part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
-    part(mkBall(0.24), 1, 1, 1, -0.34, 0.63, 0.3),
-    part(mkBall(0.24), 1, 1, 1, 0.34, 0.63, 0.3),
-  ],
-  '🐷': () => [                                  // 猪：头 + 低位前凸猪鼻子（眼睛在鼻子上方）+ 圆耳
-    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
-    part(mkCyl(0.3, 0.32, 0.34, 18), 1, 1, 1, 0, 0.16, 0.74, Math.PI / 2),
-    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, -0.54, 0.72, 0, 0, 0.42),
-    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, 0.54, 0.72, 0, 0, -0.42),
-  ],
   '🐻': () => [                                  // 熊：头 + 圆耳朵 + 嘴巴正下方的圆吻部
     part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
     part(mkBall(0.26), 1, 1, 1, -0.6, 0.64, -0.06),
@@ -2426,14 +2410,31 @@ const EMOJI_BUILDERS = {
     part(mkCyl(0.5, 0.56, 1.3, 18), 1, 1, 1, 0, -0.02, 0),
     part(mkBall(0.95), 1, 0.34, 1, 0, 0.88, 0),
   ],
-  '🍓': () => [                                  // 草莓：饱满果子 + 叶蒂 + 小梗
-    part(mkBall(0.84), 0.98, 1.06, 0.98, 0, -0.05, 0),
-    part(mkCone(0.52, 0.26, 8), 1, 1, 1, 0, 0.68, 0),
-    part(mkCyl(0.06, 0.06, 0.26, 10), 1, 1, 1, 0, 0.86, 0),
+  '🐥': () => [                                  // 小鸡：圆身子 + 头顶呆毛 + 两片小翅膀
+    part(mkBall(0.85), 1, 0.95, 0.95, 0, 0, 0),
+    part(mkCone(0.16, 0.3, 8), 1, 1, 1, 0, 0.88, 0),
+    part(mkBall(0.18), 1, 0.7, 0.9, -0.74, 0.05, 0),
+    part(mkBall(0.18), 1, 0.7, 0.9, 0.74, 0.05, 0),
   ],
-  '🍙': () => [                                  // 饭团：饱满米团 + 底前一片海苔
-    part(mkBall(0.88), 1.06, 0.92, 1, 0, -0.02, 0),
-    part(mkBox(0.6, 0.52, 0.34), 1, 1, 1, 0, -0.5, 0.58),
+  '🥕': () => [                                  // 胡萝卜：尖朝下的身子 + 三片叶子
+    part(mkCone(0.55, 1.5, 12), 1, 1, 1, 0, -0.35, 0, Math.PI),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, -0.18, 0.8, 0, 0, 0, 0.45),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, 0, 0.9, 0),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, 0.18, 0.8, 0, 0, 0, -0.45),
+  ],
+  '🧁': () => [                                  // 纸杯蛋糕：纸杯 + 奶油顶 + 樱桃
+    part(mkCyl(0.62, 0.48, 0.62, 14), 1, 1, 1, 0, -0.42, 0),
+    part(mkBall(0.7), 1.06, 0.78, 1.06, 0, 0.28, 0),
+    part(mkBall(0.14), 1, 1, 1, 0, 0.78, 0),
+  ],
+  '🎃': () => [                                  // 南瓜：扁圆瓜身 + 瓜梗
+    part(mkBall(0.88), 1.08, 0.88, 1.02, 0, -0.05, 0),
+    part(mkCyl(0.09, 0.12, 0.3, 10), 1, 1, 1, 0, 0.84, 0),
+  ],
+  '🌵': () => [                                  // 仙人掌：粗主干 + 两根手臂
+    part(new THREE.CapsuleGeometry(0.42, 0.9, 6, 14), 1, 1, 1, 0, -0.05, 0),
+    part(new THREE.CapsuleGeometry(0.2, 0.4, 6, 12), 1, 1, 1, -0.62, 0.25, 0),
+    part(new THREE.CapsuleGeometry(0.2, 0.4, 6, 12), 1, 1, 1, 0.62, 0.45, 0),
   ],
 };
 function buildEmojiGeo(e) {
