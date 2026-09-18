@@ -165,7 +165,7 @@
   <div class="card" id="titleCard">
     <h1>🧺 史莱姆郊游 · 3D</h1>
     <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-    <span id="verChip">v1.2.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+    <span id="verChip">v1.3.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
   </div>
 
   <!-- 功能按钮 -->
@@ -186,7 +186,6 @@
     👆 点一下戳戳 · 🤚 长按抚摸<br>
     🎯 点草地跳过去 · 点湖面游泳<br>
     🍉 点野餐食物投喂<br>
-    🛶 点小船登船兜风<br>
     🐰 点小动物交朋友<br>
     🎈 点气球放飞 · 再点戳破<br>
     🫧 点泡泡瓶吹泡泡 · 戳破它<br>
@@ -250,9 +249,8 @@ const V3    = (x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
    全局状态
 ================================================================ */
 const WATER_Y = -0.35;
-const LAKE = { x:-4.5, z:3, r:4.2 };
-const ISLAND = { x:-5.6, z:2.1, r:0.9 };
-const PLAY_R = 12;
+const LAKE = { x:-3.4, z:1.8, r:1.7 };
+const PLAY_R = 5.5;
 
 const S = {
   time:0, night:0, nightTarget:0,
@@ -301,6 +299,12 @@ $('homeLink').addEventListener('click', e=>{
 ui.modalWrap.onclick = e=>{ if(e.target===ui.modalWrap) ui.modalWrap.classList.remove('show'); };
 
 $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
+  <h3>v1.3.0 迷你箱庭版</h3>
+  <ul>
+    <li>🧊 地图大幅缩小：活动半径 5.5，一块小区域一眼尽收</li>
+    <li>🪨 精简：移除小船/湖心岛/踮脚石，宝箱挪到岸边草地</li>
+    <li>📷 相机拉近，转半圈就能看到所有内容</li>
+  </ul>
   <h3>v1.2.0 简化版</h3>
   <ul>
     <li>🗑️ 移除任务/星级系统，回归纯粹的玩具箱玩法</li>
@@ -489,7 +493,7 @@ function texGrass(){
     x.fillStyle = `rgba(255,255,200,${rand(0.05,0.16)})`;
     x.fillRect(rand(0,256), rand(0,256), 2, 2);
   }
-  return canvasTex(c, 10);
+  return canvasTex(c, 6);
 }
 function texGingham(){
   const [c,x] = makeCanvas(128,128);
@@ -576,14 +580,14 @@ $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fdcff);
-scene.fog = new THREE.Fog(0xcfeafd, 20, 60);
+scene.fog = new THREE.Fog(0xcfeafd, 10, 30);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 400);
 const cam = {
-  theta: -0.6, phi: 1.05, radius: 7, target: V3(0,1,0),
+  theta: -0.6, phi: 1.05, radius: 4, target: V3(0,1,0),
   intro: 0,
 };
 
@@ -641,7 +645,7 @@ const clouds = [];
       s.scale.y = 0.6;
       g.add(s);
     }
-    g.position.set(rand(-26,26), rand(10,14), rand(-26,26));
+    g.position.set(rand(-14,14), rand(6.5,9), rand(-14,14));
     g.userData.speed = rand(0.4,1.0);
     scene.add(g); clouds.push(g);
   }
@@ -656,16 +660,13 @@ function terrainHeight(x,z){
         + Math.sin(x*0.05+1.7)*0.85
         + Math.cos(z*0.06+0.6)*0.7
         + Math.sin((x+z)*0.05+2.4)*0.35;
-  h *= smooth(4, 11, r);          // 中心野营地压平
+  h *= smooth(2.2, 6, r);          // 中心野营地压平
   const dl = dist2d(x,z,LAKE.x,LAKE.z);
-  h -= smooth(LAKE.r+3.5, LAKE.r-2.5, dl)*2.3;   // 湖盆
-  const di = dist2d(x,z,ISLAND.x,ISLAND.z);
-  h += smooth(ISLAND.r, ISLAND.r*0.25, di)*2.9;  // 湖心小岛
+  h -= smooth(LAKE.r+0.6, LAKE.r-0.8, dl)*1.4;   // 小池塘
   return h;
 }
-// 湖心岛是地形的一部分，且高于水面 → groundInfo 会自然给出地面
 
-const terrainGeo = new THREE.PlaneGeometry(40,40,80,80);
+const terrainGeo = new THREE.PlaneGeometry(20,20,64,64);
 terrainGeo.rotateX(-Math.PI/2);
 {
   const pos = terrainGeo.attributes.position;
@@ -682,7 +683,7 @@ terrainGeo.rotateX(-Math.PI/2);
     const n = 0.5+0.5*Math.sin(x*12.9898+z*78.233);
     tmp.copy(cGrass).lerp(cGrass2, n);
     const dl = dist2d(x,z,LAKE.x,LAKE.z);
-    const sandMix = smooth(LAKE.r+2.2, LAKE.r-1.2, dl) * smooth(0.8,-0.4,h);
+    const sandMix = smooth(LAKE.r+1.2, LAKE.r-0.6, dl) * smooth(0.8,-0.4,h);
     tmp.lerp(cSand, clamp(sandMix,0,1));
     if(h < WATER_Y+0.15) tmp.lerp(cMud, smooth(WATER_Y+0.15, WATER_Y-1.2, h));
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
@@ -703,10 +704,10 @@ scene.add(terrain);
   const defs = [];
   for(let i=0;i<8;i++){
     const a = (i/8)*TAU + rand(-0.2,0.2);
-    const rr = rand(22,28);
-    defs.push({x:Math.cos(a)*rr, z:Math.sin(a)*rr, r:rand(4.5,7.5), h:rand(6.5,12)});
+    const rr = rand(11,15);
+    defs.push({x:Math.cos(a)*rr, z:Math.sin(a)*rr, r:rand(2.5,4.5), h:rand(4,8)});
   }
-  defs.push({x:0,z:-38,r:11,h:15},{x:-30,z:20,r:9,h:12});
+  defs.push({x:0,z:-17,r:5,h:8},{x:-14,z:10,r:4,h:7});
   for(const d of defs){
     const m = new THREE.Mesh(new THREE.ConeGeometry(d.r,d.h,7), mtnMat);
     m.position.set(d.x, d.h/2-2.5, d.z);
@@ -757,7 +758,7 @@ const waterMat = new THREE.ShaderMaterial({
       col = mix(col, uFog, fres*0.4);
       col = mix(col, col*0.35+vec3(0.02,0.04,0.1), uNight);
       float d = distance(uCam, vWorld);
-      float f = smoothstep(14.0, 42.0, d);
+      float f = smoothstep(7.0, 22.0, d);
       col = mix(col, uFog, f);
       gl_FragColor = vec4(col, 0.84);
     }`,
@@ -770,23 +771,13 @@ water.renderOrder = 2;
 scene.add(water);
 
 /* ================================================================
-   地面查询（含湖 / 荷叶 / 石墩 / 木筏）
+   地面查询（含湖 / 荷叶 / 蘑菇 / 蹦床）
 ================================================================ */
-const stones = [];
 const lilyPads = [];
-let boat = null;
-
-function boatDeckY(){ return WATER_Y + 0.28; }
 
 function groundInfo(x,z){
-  if(boat && dist2d(x,z,boat.group.position.x,boat.group.position.z) < 1.5)
-    return { h:boatDeckY(), kind:'boat' };
   if(trampoline && dist2d(x,z,trampoline.group.position.x,trampoline.group.position.z) < 1.15)
     return { h:trampoline.y, kind:'tramp' };
-  for(const st of stones){
-    if(dist2d(x,z,st.mesh.position.x,st.mesh.position.z) < 0.62)
-      return { h:st.top, kind:'stone' };
-  }
   for(const m of mushrooms){
     if(dist2d(x,z,m.mesh.position.x,m.mesh.position.z) < m.r)
       return { h:m.mesh.position.y+0.5, kind:'mush' };
@@ -796,7 +787,7 @@ function groundInfo(x,z){
       return { h:WATER_Y+0.12, kind:'pad', pad:p };
   }
   const h = terrainHeight(x,z);
-  if(h < WATER_Y-0.18 && dist2d(x,z,ISLAND.x,ISLAND.z) > ISLAND.r)
+  if(h < WATER_Y-0.18)
     return { h:WATER_Y, kind:'water' };
   return { h, kind:'ground' };
 }
@@ -815,7 +806,7 @@ const trees = [];
   const leafMatA = new THREE.MeshStandardMaterial({ color:0x4f9e4c, roughness:1, flatShading:true });
   const leafMatB = new THREE.MeshStandardMaterial({ color:0x6cbf5a, roughness:1, flatShading:true });
   const spots = [
-    [3,1.8],[4.2,-0.6],[2.1,-2.8],[-1.8,-3],[-4,-1.8],[0.9,4],[3.6,3.6],[-6.6,-3.6],[6,-2.8],[-3,-4.8],[4.8,1.2],[7.3,4.8],
+    [4.4,0.8],[3.4,-3.0],[-1.5,-4.4],[-4.8,-2.4],[1.6,4.4],[5.0,2.6],
   ];
   for(const [tx,tz] of spots){
     if(dist2d(tx,tz,LAKE.x,LAKE.z) < LAKE.r+2.5) continue;
@@ -845,13 +836,13 @@ const trees = [];
   const geo = new THREE.ConeGeometry(0.05, 0.42, 4);
   geo.translate(0,0.21,0);
   const mat = new THREE.MeshStandardMaterial({ color:0x69b84e, roughness:1 });
-  const N = 240;
+  const N = 140;
   const inst = new THREE.InstancedMesh(geo, mat, N);
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
   let placed = 0, guard = 0;
   while(placed < N && guard++ < 4000){
-    const x = rand(-13,13), z = rand(-13,13);
+    const x = rand(-6.5,6.5), z = rand(-6.5,6.5);
     if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
     if(terrainHeight(x,z) < WATER_Y) continue;
     dummy.position.set(x, terrainHeight(x,z), z);
@@ -875,17 +866,17 @@ const flowerHeads = [];
   const stemMat = new THREE.MeshStandardMaterial({ color:0x4e9e44, roughness:1 });
   const headGeo = new THREE.SphereGeometry(0.075,7,6);
   const headMat = new THREE.MeshStandardMaterial({ roughness:0.7 });
-  const N = 40;
+  const N = 26;
   const stems = new THREE.InstancedMesh(stemGeo, stemMat, N);
   const heads = new THREE.InstancedMesh(headGeo, headMat, N);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
   const palette = [0xff9db8,0xffd36e,0xb7a4ff,0xff8f6e,0xfff3ff,0x9fd8ff];
   let placed=0, guard=0;
   while(placed<N && guard++<4000){
-    const x = rand(-12,12), z = rand(-12,12);
+    const x = rand(-5.5,5.5), z = rand(-5.5,5.5);
     if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
     if(terrainHeight(x,z) < WATER_Y) continue;
-    if(Math.hypot(x,z) < 4) continue; // 野餐区留空
+    if(Math.hypot(x,z) < 2.4) continue; // 野餐区留空
     const y = terrainHeight(x,z);
     dummy.position.set(x,y,z); dummy.rotation.set(0,0,0); dummy.scale.setScalar(rand(0.8,1.4));
     dummy.updateMatrix();
@@ -907,7 +898,7 @@ const mushrooms = [];
   const capMat = new THREE.MeshStandardMaterial({ color:0xe8574f, roughness:0.6 });
   const dotMat = new THREE.MeshStandardMaterial({ color:0xfff5ee, roughness:0.6 });
   const stemMat = new THREE.MeshStandardMaterial({ color:0xf5e8d8, roughness:1 });
-  const defs = [[1.8,0.9],[4.4,2.2],[-2.2,-4]];
+  const defs = [[2.6,1.6],[-2.6,-2.6]];
   for(const [mx,mz] of defs){
     const g = new THREE.Group();
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.42,8), stemMat);
@@ -939,8 +930,8 @@ function addRock(x,z,s){
   scene.add(r);
   return r;
 }
-addRock(2.3,-1.6,0.42); addRock(-2.1,-2.9,0.5); addRock(4.5,-2.5,0.4);
-const balloonAnchor = addRock(2.6,-0.3,0.36);
+addRock(1.4,-1.7,0.38); addRock(-1.5,-2.4,0.42); addRock(2.5,-2.3,0.34);
+const balloonAnchor = addRock(1.7,0.6,0.34);
 
 /* ================================================================
    野餐营地
@@ -956,10 +947,10 @@ function regInteractive(obj, action, label){
 /* --- 格子野餐布 --- */
 {
   const blanket = new THREE.Mesh(
-    new THREE.BoxGeometry(4.6,0.06,3.4),
+    new THREE.BoxGeometry(2.2,0.06,1.7),
     new THREE.MeshStandardMaterial({ map:texGingham(), roughness:1 })
   );
-  blanket.position.set(-1.6, 0.035, 1.6);
+  blanket.position.set(-0.1, 0.035, 0.4);
   blanket.receiveShadow = true;
   camp.add(blanket);
 }
@@ -978,7 +969,7 @@ let basketLid = null;
   const handle = new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,7,16,Math.PI), wickMat);
   handle.position.y = 0.5;
   g.add(body, rim, basketLid, handle);
-  g.position.set(0.7, 0, 2.4);
+  g.position.set(0.75, 0, 1.2);
   g.userData.baseY = 0;
   shadowify(g);
   camp.add(g);
@@ -1003,7 +994,7 @@ let radio = null;
     new THREE.MeshStandardMaterial({ color:0x888888, metalness:0.6, roughness:0.4 }));
   antenna.position.set(0.2,0.44,0); antenna.rotation.z = -0.4;
   g.add(box, speaker, knob, antenna);
-  g.position.set(-3.4, 0, 0.6);
+  g.position.set(-1.6, 0, -0.5);
   g.rotation.y = 0.5;
   shadowify(g);
   camp.add(g);
@@ -1039,7 +1030,7 @@ let campfire = null;
   const light = new THREE.PointLight(0xff9a3d, 0, 9, 1.6);
   light.position.y = 0.9;
   g.add(light);
-  g.position.set(2.6, 0, -1.4);
+  g.position.set(1.5, 0, -0.9);
   shadowify(g);
   flame.castShadow = flameIn.castShadow = false;
   camp.add(g);
@@ -1123,8 +1114,8 @@ function makeFoodMesh(kind){
 }
 {
   const defs = [
-    ['melon', -2.5, 2.2], ['bread', -1.2, 1.1], ['juice', -0.6, 2.4], ['berry', -2.0, 0.9],
-    ['apple', -3.3, 1.7], ['chili', -0.9, 3.0],
+    ['melon', -0.8, 0.75], ['bread', -0.2, 0.25], ['juice', 0.25, 0.75], ['berry', -0.55, 0.05],
+    ['apple', -0.95, 0.45], ['chili', -0.1, 1.05],
   ];
   for(const [kind, fx, fz] of defs){
     const m = makeFoodMesh(kind);
@@ -1139,26 +1130,11 @@ function makeFoodMesh(kind){
 }
 
 /* ================================================================
-   湖上设施：石墩 / 荷叶 / 木筏 / 宝箱
+   湖上设施：荷叶 / 宝箱
 ================================================================ */
 {
-  const dir = V3(ISLAND.x-LAKE.x, 0, ISLAND.z-LAKE.z).normalize();
-  const shore = V3(LAKE.x,0,LAKE.z).add(dir.clone().multiplyScalar(LAKE.r+1.2));
-  const stoneMat = new THREE.MeshStandardMaterial({ color:0xa8a89a, roughness:1, flatShading:true });
-  for(let i=0;i<4;i++){
-    const t = 0.22 + i*0.19;
-    const p = shore.clone().lerp(V3(ISLAND.x,0,ISLAND.z), t);
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(rand(0.45,0.6),rand(0.55,0.7),1.6,7), stoneMat);
-    st.position.set(p.x, -0.6, p.z);
-    st.rotation.y = rand(0,TAU);
-    shadowify(st);
-    scene.add(st);
-    stones.push({ mesh:st, top:0.22 });
-  }
-}
-{
   const padMat = new THREE.MeshStandardMaterial({ color:0x3e9e4f, roughness:0.8, side:THREE.DoubleSide });
-  const defs = [[-3.6,2.4],[-2.9,3.3],[-4.3,3.4]];
+  const defs = [[-2.9,1.2],[-2.7,2.5]];
   for(const [px,pz] of defs){
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.045,14), padMat);
     pad.position.set(px, WATER_Y+0.06, pz);
@@ -1171,33 +1147,7 @@ function makeFoodMesh(kind){
     lilyPads.push({ mesh:pad, phase:rand(0,TAU) });
   }
 }
-/* --- 木筏 --- */
-{
-  const g = new THREE.Group();
-  const logMat = new THREE.MeshStandardMaterial({ map:texWood('#a5713f'), roughness:1 });
-  for(let i=0;i<5;i++){
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,2.0,7), logMat);
-    log.rotation.z = Math.PI/2;
-    log.position.set(0, 0, (i-2)*0.3);
-    g.add(log);
-  }
-  const poleMat = new THREE.MeshStandardMaterial({ map:texWood('#8a5a30'), roughness:1 });
-  for(const px of [-0.8,0.8]){
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.9,6), poleMat);
-    pole.position.set(px, 0.4, -0.75);
-    g.add(pole);
-  }
-  const oar = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.9,0.16), poleMat);
-  oar.position.set(0.9, 0.1, 0.3);
-  oar.rotation.z = 0.5;
-  g.add(oar);
-  shadowify(g);
-  scene.add(g);
-  boat = { group:g, phase:rand(0,TAU), heading:0, bobPhase:rand(0,TAU), oar };
-  g.position.set(LAKE.x+3.2, WATER_Y, LAKE.z);
-  regInteractive(g, 'boat', '小木筏');
-}
-/* --- 小岛宝箱 --- */
+/* --- 岸边宝箱 --- */
 let chest = null;
 {
   const g = new THREE.Group();
@@ -1210,8 +1160,8 @@ let chest = null;
   const bandF = new THREE.Mesh(new THREE.BoxGeometry(0.74,0.5,0.08), band);
   bandF.position.y = 0.25;
   g.add(base, lid, bandF);
-  const iy = terrainHeight(ISLAND.x, ISLAND.z);
-  g.position.set(ISLAND.x, iy, ISLAND.z);
+  const cy = terrainHeight(-4.5,-1.0);
+  g.position.set(-4.5, cy, -1.0);
   g.rotation.y = 0.8;
   shadowify(g);
   scene.add(g);
@@ -1233,7 +1183,7 @@ let bubbleJar = null;
   const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.24,6), pinkMat);
   stick.position.set(0.17,-0.08,0);
   g.add(jar, wand, stick);
-  g.position.set(0.3, 0.07, 0.9);
+  g.position.set(0.6, 0.07, 0.3);
   shadowify(g);
   camp.add(g);
   bubbleJar = g;
@@ -1275,12 +1225,12 @@ let kite = null;
   const tail2 = tail1.clone(); tail2.position.set(-0.08,-0.72,0); tail2.rotation.z = -0.5;
   const tail3 = tail1.clone(); tail3.position.set(0.09,-0.98,0); tail3.rotation.z = 0.4;
   g.add(diamond, sparV, sparH, tail1, tail2, tail3);
-  const stakeY = terrainHeight(5.3,2.8);
-  g.position.set(5.3, stakeY+0.95, 2.8);
+  const stakeY = terrainHeight(3.6,1.4);
+  g.position.set(3.6, stakeY+0.95, 1.4);
   g.rotation.z = 0.25;
   shadowify(g);
   scene.add(g);
-  kite = { group:g, stake:V3(5.3, stakeY+0.05, 2.8), state:'ground', t:0, trick:0, rest:g.position.clone() };
+  kite = { group:g, stake:V3(3.6, stakeY+0.05, 1.4), state:'ground', t:0, trick:0, rest:g.position.clone() };
   regInteractive(g, 'kite', '风筝');
   const lineGeo = new THREE.BufferGeometry().setFromPoints([kite.stake.clone(), g.position.clone()]);
   const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.5 }));
@@ -1293,7 +1243,7 @@ const dandelions = [];
 {
   const stemMat = new THREE.MeshStandardMaterial({ color:0x4e9e44, roughness:1 });
   const puffMat = new THREE.MeshStandardMaterial({ color:0xf7f7f2, roughness:1, flatShading:true });
-  const defs = [[2.1,3.9],[3.9,-2.1],[0.3,-4.2]];
+  const defs = [[1.7,3.5],[3.3,-1.4],[0.1,-3.8]];
   for(const [dx,dz] of defs){
     const g = new THREE.Group();
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,0.5,6), stemMat);
@@ -1327,8 +1277,8 @@ let trampoline = null;
     new THREE.MeshStandardMaterial({ color:0x4a90d9, roughness:0.7 }));
   mat.rotation.x = -Math.PI/2; mat.position.y = 0.55;
   g.add(ring, mat);
-  const gy = terrainHeight(0.3,-2.6);
-  g.position.set(0.3, gy, -2.6);
+  const gy = terrainHeight(0.3,-2.4);
+  g.position.set(0.3, gy, -2.4);
   shadowify(g);
   scene.add(g);
   trampoline = { group:g, mat, y:gy+0.55, dip:0 };
@@ -1362,7 +1312,7 @@ let swing = null;
   seat.position.set(0, -1.62, 0);
   arm.add(seat);
   g.add(arm);
-  g.position.set(-2.8, terrainHeight(-2.8,-1.6), -1.6);
+  g.position.set(-1.8, terrainHeight(-1.8,-1.3), -1.3);
   g.rotation.y = 0.7;
   shadowify(g);
   scene.add(g);
@@ -1381,7 +1331,7 @@ let ball = null;
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.32,18,14),
     new THREE.MeshStandardMaterial({ map:tex, roughness:0.5 }));
   m.castShadow = true;
-  m.position.set(1.5, 0.32, 2.2);
+  m.position.set(0.9, 0.32, 2.4);
   shadowify(m);
   scene.add(m);
   ball = { mesh:m, vel:V3(), r:0.32, playMode:false, kickCd:0 };
@@ -1394,7 +1344,7 @@ let ball = null;
 const SLIME_COLORS = [0x8df5d3, 0xffb7d0, 0xa8d8ff, 0xffe08a, 0xd2b4ff, 0xbef0a8];
 const slime = {
   group: new THREE.Group(),
-  pos: V3(0, 0, -2.5),
+  pos: V3(0, 0, -1.6),
   vel: V3(0,0,0),
   state: 'idle',
   heading: 0,
@@ -1414,7 +1364,6 @@ const slime = {
   pokeTimes: [],
   sleepy: false, sleepT: 0,
   sitFire: false,
-  riding: false,
   colorIdx: 0,
   rainbow: false,
   chiliT: 0, haste: 0, flip: 0,
@@ -1557,7 +1506,7 @@ function spawnBaby(delay){
 const animals = [];
 
 /* --- 小兔子 --- */
-const rabbit = { group:new THREE.Group(), pos:V3(3,0,3.3), state:'idle', target:null, fed:false,
+const rabbit = { group:new THREE.Group(), pos:V3(2.6,0,2.8), state:'idle', target:null, fed:false,
   hopT:0, vy:0, grounded:true, heading:0, idleT:rand(2,5), friendT:0 };
 {
   const furMat = new THREE.MeshStandardMaterial({ color:0xf7f2ec, roughness:1 });
@@ -1607,8 +1556,8 @@ function makeDuck(scale, color){
   return g;
 }
 {
-  const mom = { group:makeDuck(1,0xf5f0e6), pos:V3(LAKE.x+3,WATER_Y,LAKE.z-2), angle:rand(0,TAU),
-    angSpeed:0.22, rad:LAKE.r*0.55, heading:0, quackT:rand(4,9), type:'duck', eatT:0 };
+  const mom = { group:makeDuck(1,0xf5f0e6), pos:V3(LAKE.x+1.2,WATER_Y,LAKE.z-0.8), angle:rand(0,TAU),
+    angSpeed:0.22, rad:0.75, heading:0, quackT:rand(4,9), type:'duck', eatT:0 };
   scene.add(mom.group);
   animals.push(mom); ducks.push(mom);
   regInteractive(mom.group, 'duck', '鸭妈妈');
@@ -1641,8 +1590,8 @@ const birds = [];
     g.add(body, wL, wR, beak);
     shadowify(g);
     scene.add(g);
-    const b = { group:g, wL, wR, mode:'fly', center:V3(rand(-4,4),rand(3.5,5),rand(-4,4)),
-      angle:rand(0,TAU), rad:rand(2.5,5), angSpeed:rand(0.25,0.45)*(Math.random()<0.5?1:-1),
+    const b = { group:g, wL, wR, mode:'fly', center:V3(rand(-2.5,2.5),rand(3,4.5),rand(-2.5,2.5)),
+      angle:rand(0,TAU), rad:rand(1.8,3.5), angSpeed:rand(0.25,0.45)*(Math.random()<0.5?1:-1),
       flap:rand(0,TAU), landT:0, heading:0 };
     birds.push(b);
     animals.push(b);
@@ -1666,7 +1615,7 @@ const butterflies = [];
     body.rotation.x = Math.PI/2;
     g.add(wL, wR, body);
     scene.add(g);
-    const bf = { group:g, wL, wR, pos:V3(rand(-5,5),rand(0.8,2),rand(-5,5)),
+    const bf = { group:g, wL, wR, pos:V3(rand(-3.5,3.5),rand(0.8,2),rand(-3.5,3.5)),
       target:null, flap:rand(0,TAU), state:'fly', landT:0, onSlime:false, retarget:0 };
     butterflies.push(bf);
     animals.push(bf);
@@ -1728,7 +1677,7 @@ let snowman = null;
   armL.position.set(-0.36,1.15,0); armL.rotation.z = 1.1;
   armR.position.set(0.36,1.15,0); armR.rotation.z = -1.1;
   g.add(b1,b2,b3,nose,eye1,eye2,armL,armR);
-  g.position.set(2.1, 0, 1.6);
+  g.position.set(1.6, 0, 1.8);
   g.scale.setScalar(0.001);
   g.visible = false;
   shadowify(g);
@@ -1832,7 +1781,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
   const N = 420;
   const geo = new THREE.BufferGeometry();
   const arr = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr[i*3]=rand(-12,12); arr[i*3+1]=rand(0,10); arr[i*3+2]=rand(-12,12); }
+  for(let i=0;i<N;i++){ arr[i*3]=rand(-7,7); arr[i*3+1]=rand(0,6); arr[i*3+2]=rand(-7,7); }
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   rainPts = new THREE.Points(geo, new THREE.PointsMaterial({
     map:texRainStreak(), size:0.7, transparent:true, opacity:0, depthWrite:false,
@@ -1841,7 +1790,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
 
   const geo2 = new THREE.BufferGeometry();
   const arr2 = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr2[i*3]=rand(-12,12); arr2[i*3+1]=rand(0,9); arr2[i*3+2]=rand(-12,12); }
+  for(let i=0;i<N;i++){ arr2[i*3]=rand(-7,7); arr2[i*3+1]=rand(0,5.5); arr2[i*3+2]=rand(-7,7); }
   geo2.setAttribute('position', new THREE.BufferAttribute(arr2,3));
   snowPts = new THREE.Points(geo2, new THREE.PointsMaterial({
     map:texGlow('255,255,255'), size:0.22, transparent:true, opacity:0, depthWrite:false,
@@ -1853,7 +1802,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
   const arr3 = new Float32Array(FN*3);
   const seed3 = [];
   for(let i=0;i<FN;i++){
-    arr3[i*3]=rand(-11,11); arr3[i*3+1]=rand(0.4,1.8); arr3[i*3+2]=rand(-11,11);
+    arr3[i*3]=rand(-5.5,5.5); arr3[i*3+1]=rand(0.3,1.4); arr3[i*3+2]=rand(-5.5,5.5);
     seed3.push({ph:rand(0,TAU), sp:rand(0.3,0.9), cx:arr3[i*3], cz:arr3[i*3+2], cy:arr3[i*3+1]});
   }
   geo3.setAttribute('position', new THREE.BufferAttribute(arr3,3));
@@ -1983,7 +1932,6 @@ renderer.domElement.addEventListener('pointerdown', e=>{
   if(hit && hit.type==='slime'){
     drag.mode = 'grab';
     slime.state = 'grab';
-    slime.riding = false;
     slime.swimming = false;
     slime.petting = false;
     slime.sleepy = false;
@@ -2019,7 +1967,7 @@ window.addEventListener('pointermove', e=>{
     const pts = [...activePointers.values()];
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     if(pinchDist>0){
-      cam.radius = clamp(cam.radius * (pinchDist/d), 3.5, 14);
+      cam.radius = clamp(cam.radius * (pinchDist/d), 2.2, 8);
     }
     pinchDist = d;
     return;
@@ -2111,7 +2059,7 @@ window.addEventListener('pointerup', e=>{
 });
 
 renderer.domElement.addEventListener('wheel', e=>{
-  cam.radius = clamp(cam.radius*(1+e.deltaY*0.001), 3.5, 14);
+  cam.radius = clamp(cam.radius*(1+e.deltaY*0.001), 2.2, 8);
 }, { passive:true });
 
 function handleAction(hit){
@@ -2121,7 +2069,6 @@ function handleAction(hit){
   else if(t==='fire') actionFire();
   else if(t==='balloon') actionBalloon(hit.obj);
   else if(t==='food') actionFood(hit.obj);
-  else if(t==='boat') actionBoat();
   else if(t==='chest') actionChest();
   else if(t==='rabbit') actionRabbit();
   else if(t==='duck') actionDuck(hit.obj);
@@ -2195,7 +2142,6 @@ function actionBalloon(obj){
   }
 }
 function actionFood(obj){
-  if(slime.riding){ toast('⛵ 先下船再吃点心吧～'); return; }
   if(obj.userData.state!=='idle') return;
   obj.userData.state = 'tossed';
   // 抛到史莱姆附近
@@ -2214,29 +2160,6 @@ function actionFood(obj){
   slime.target = { x:tx, z:tz };
   if(slime.state!=='grab') slime.state = 'hop';
 }
-function actionBoat(){
-  if(slime.riding){
-    // 下船：跳向最近的岸边
-    const shore = nearestShore(slime.pos.x, slime.pos.z);
-    slime.riding = false;
-    slime.target = shore;
-    slime.state = 'hop';
-    toast('🛶 靠岸啦，跳下去！');
-    return;
-  }
-  if(groundInfo(slime.pos.x,slime.pos.z).kind==='water'){
-    // 在水里 → 直接游向船
-    slime.target = { x:boat.group.position.x, z:boat.group.position.z };
-    slime.state = 'swim';
-    slime.autoAction = 'board';
-  } else {
-    boat.paused = false;
-    slime.autoAction = 'board';
-    slime.target = { x:boat.group.position.x, z:boat.group.position.z };
-    slime.state = 'hop';
-  }
-  toast('🛶 史莱姆要去乘船咯！');
-}
 function nearestShore(x,z){
   const dx = x-LAKE.x, dz = z-LAKE.z;
   const d = Math.hypot(dx,dz)||1;
@@ -2253,7 +2176,6 @@ function actionChest(){
   toast('🎁 打开宝箱！满满的星光糖果！', true);
 }
 function actionRabbit(){
-  if(slime.riding){ toast('⛵ 先下船再去喂小兔子吧～'); return; }
   if(rabbit.fed){ toast('🐰 小兔子吃饱啦，它喜欢你！'); spawnHearts(rabbit.pos.clone().add(V3(0,0.8,0)),1); return; }
   toast('🥕 拿出胡萝卜，史莱姆送过去给小兔子…');
   slime.autoAction = 'feedRabbit';
@@ -2299,7 +2221,6 @@ function actionSnowman(){
   toast('⛄ 雪人跟你挥挥手！');
 }
 function actionJar(){
-  if(slime.riding){ toast('⛵ 先下船再吹泡泡呀～'); return; }
   slime.autoAction = 'bubbles';
   slime.target = { x:bubbleJar.position.x+0.9, z:bubbleJar.position.z+0.5 };
   if(slime.state!=='grab') slime.state = 'hop';
@@ -2345,14 +2266,12 @@ function blowDandelion(obj){
     });
 }
 function actionTramp(){
-  if(slime.riding){ toast('⛵ 先下船再玩蹦床呀～'); return; }
   slime.autoAction = null;
   slime.target = { x:trampoline.group.position.x, z:trampoline.group.position.z };
   if(slime.state!=='grab') slime.state = 'hop';
   toast('🤸 冲向蹦床！');
 }
 function actionSwing(){
-  if(slime.riding){ toast('⛵ 先下船再来荡秋千呀～'); return; }
   if(slime.state==='swing'){
     swing.amp = Math.min(swing.amp+0.38, 1.05);
     AU.tone(180, 0.15, 'triangle', 0.1, 120);
@@ -2383,7 +2302,7 @@ function actionSummon(){
 }
 const plantedFlowers = [];
 function plantFlower(){
-  if(slime.riding || slime.state==='swing' || slime.swimming){ return; }
+  if(slime.state==='swing' || slime.swimming){ return; }
   if(plantedFlowers.length>=20){
     const old = plantedFlowers.shift();
     scene.remove(old.group);
@@ -2408,12 +2327,11 @@ function plantFlower(){
 
 /* --- 点击地面/水面移动 --- */
 function commandMove(point, isWater){
-  if(slime.riding) return;
   if(slime.state==='swing'){ slime.state = 'free'; }
   slime.sleepy = false; slime.sitFire = false;
   if(isWater){
     const dl = dist2d(point.x, point.z, LAKE.x, LAKE.z);
-    if(dl > LAKE.r-1.2){
+    if(dl > LAKE.r-0.2){
       const s = nearestShore(point.x, point.z);
       point.x = s.x; point.z = s.z;
     }
@@ -2451,14 +2369,12 @@ window.addEventListener('keydown', e=>{
       slime.vel.set(Math.sin(ry)*fvel*1.6, 4.5, Math.cos(ry)*fvel*1.6);
       AU.boing(1.2);
       toast('💨 跳下来啦！');
-    } else if(!slime.riding && slime.state!=='grab'){
+    } else if(slime.state!=='grab'){
       slime.vel.y = 9.8;
       slime.grounded = false;
       slime.state = 'free';
       AU.boing(1.5);
       slime.jig = 0.8;
-    } else if(slime.riding){
-      actionBoat();
     }
   } else if(e.code==='KeyB'){
     if(slime.danceT<=0){ slime.danceT = 2.6; AU.giggle(); }
@@ -2570,16 +2486,6 @@ function updateSlime(dt){
     slime.jig *= Math.pow(0.02, dt);
     updateFace(dt);
     applySlimeTransform(dt);
-    return;
-  }
-
-  /* 乘船 */
-  if(slime.riding){
-    const bp = boat.group.position;
-    slime.pos.set(bp.x, boatDeckY()+Math.sin(S.time*2+boat.bobPhase)*0.04, bp.z);
-    updateFace(dt);
-    applySlimeTransform(dt);
-    blobShadow.visible = false;
     return;
   }
 
@@ -2707,13 +2613,6 @@ function updateSlime(dt){
       spawnRipple(slime.pos.x, slime.pos.z, 1.6);
       if(frog.pad===g2.pad){ frog.state='hop'; frog.hopT=0; AU.croak(); }
       toast('🪷 荷叶弹弹床！', false, 900);
-    } else if(g2.kind==='boat' && slime.autoAction==='board'){
-      slime.autoAction = null;
-      slime.swimming = false;
-      slime.riding = true;
-      slime.state = 'ride';
-      addMood(8);
-      toast('⛵ 登船！环湖兜风咯～ 点小船或按空格下船', true, 2600);
     } else if(g2.kind==='mush' && impact>1){
       slime.vel.y = 13;
       slime.grounded = false;
@@ -2746,12 +2645,6 @@ function updateSlime(dt){
           slime.state = 'swim';
           addMood(6);
         } else if(act==='eat' && slime.autoFood){ slime.state='eat'; slime.eatT=1.3; slime.eatFood=slime.autoFood; }
-        else if(act==='board'){
-          // 小船还在漂，继续追
-          slime.autoAction = 'board';
-          slime.target = { x:boat.group.position.x, z:boat.group.position.z };
-          slime.state = 'hop';
-        }
         else if(act==='feedRabbit'){
           // 掉落胡萝卜
           spawnParticle(slime.pos.clone().add(V3(0,0.6,0)), { map:texGlow('255,150,60'), color:0xff9633, vel:V3(rand(-0.5,0.5),1.4,rand(-0.5,0.5)), life:0.7, size:0.2, grav:-6 });
@@ -2789,14 +2682,7 @@ function updateSlime(dt){
       }
     }
   } else if(slime.state==='swim'){
-    if(slime.autoAction==='board' && dist2d(slime.pos.x,slime.pos.z,boat.group.position.x,boat.group.position.z)<1.6){
-      slime.autoAction = null;
-      slime.swimming = false;
-      slime.riding = true;
-      slime.state = 'ride';
-      addMood(8);
-      toast('⛵ 登船！环湖兜风咯～ 点小船或按空格下船', true, 2600);
-    } else if(slime.target){
+    if(slime.target){
       const dx = slime.target.x - slime.pos.x;
       const dz = slime.target.z - slime.pos.z;
       const dist = Math.hypot(dx,dz);
@@ -2820,15 +2706,15 @@ function updateSlime(dt){
       slime.idleT -= dt;
       if(slime.idleT<=0){
         slime.idleT = rand(5,10);
-    if(Math.random()<0.65){
-          const a = rand(0,TAU), r = rand(1.5,4);
+      if(Math.random()<0.65){
+          const a = rand(0,TAU), r = rand(1,2.2);
           let tx = slime.pos.x+Math.cos(a)*r, tz = slime.pos.z+Math.sin(a)*r;
           if(groundInfo(tx,tz).kind==='ground'){ slime.target={x:tx,z:tz}; slime.state='hop'; }
         }
       }
       // 夜晚围篝火
       if(S.night>0.6 && campfire.lit && !slime.sitFire){
-        if(dist2d(slime.pos.x,slime.pos.z,campfire.group.position.x,campfire.group.position.z)<3.5 && Math.random()<dt*0.5){
+        if(dist2d(slime.pos.x,slime.pos.z,campfire.group.position.x,campfire.group.position.z)<2.2 && Math.random()<dt*0.5){
           slime.sitFire = true;
           addMood(6);
           toast('🔥 史莱姆围着篝火烤棉花糖…', false, 1800);
@@ -2934,7 +2820,7 @@ function updateAnimals(dt){
     const ds = dist2d(r.pos.x,r.pos.z,slime.pos.x,slime.pos.z);
     if(!r.fed && ds<2.2 && r.grounded && r.state==='idle'){
       const a = Math.atan2(r.pos.z-slime.pos.z, r.pos.x-slime.pos.x);
-      r.target = { x:clamp(r.pos.x+Math.cos(a)*3.5,-10,10), z:clamp(r.pos.z+Math.sin(a)*3.5,-10,10) };
+      r.target = { x:clamp(r.pos.x+Math.cos(a)*2.5,-5,5), z:clamp(r.pos.z+Math.sin(a)*2.5,-5,5) };
       r.state = 'hop';
     }
     if(r.fed){
@@ -2961,8 +2847,8 @@ function updateAnimals(dt){
       r.idleT -= dt;
       if(r.idleT<=0 && r.grounded){
         r.idleT = rand(3,7);
-        const a = rand(0,TAU), rr = rand(1,3);
-        const tx = clamp(r.pos.x+Math.cos(a)*rr,-10,10), tz = clamp(r.pos.z+Math.sin(a)*rr,-10,10);
+        const a = rand(0,TAU), rr = rand(0.8,1.8);
+        const tx = clamp(r.pos.x+Math.cos(a)*rr,-5,5), tz = clamp(r.pos.z+Math.sin(a)*rr,-5,5);
         if(groundInfo(tx,tz).kind==='ground'){ r.target={x:tx,z:tz}; r.state='hop'; }
       }
     }
@@ -3025,7 +2911,7 @@ function updateAnimals(dt){
       // 落在野餐布附近啄食
       b.landT -= dt;
       const t = S.time*0.6;
-      b.group.position.set(-1.6+Math.sin(t+b.rad)*1.2, 0.42, 1.6+Math.cos(t*1.3+b.rad)*0.8);
+      b.group.position.set(-0.1+Math.sin(t+b.rad)*0.8, 0.42, 0.4+Math.cos(t*1.3+b.rad)*0.6);
       b.group.rotation.x = Math.abs(Math.sin(S.time*5+b.rad))*0.5;
       b.heading = t+b.rad;
       if(b.landT<=0 || dist2d(slime.pos.x,slime.pos.z,b.group.position.x,b.group.position.z)<1.6){
@@ -3050,7 +2936,7 @@ function updateAnimals(dt){
         else {
           const fh = flowerHeads[rint(0,flowerHeads.length-1)];
           if(fh && Math.random()<0.6) bf.target = V3(fh[0]+rand(-0.5,0.5), fh[1]+rand(0.4,1), fh[2]+rand(-0.5,0.5));
-          else bf.target = V3(rand(-6,6), rand(0.8,2.2), rand(-6,6));
+          else bf.target = V3(rand(-4,4), rand(0.8,2.2), rand(-4,4));
         }
       }
       const d = bf.target.clone().sub(bf.pos);
@@ -3141,26 +3027,6 @@ function updateFacilities(dt){
     }
   }
 
-  /* 木筏：在湖东侧往返摆渡（避开湖心岛和踮脚石） */
-  {
-    const b = boat;
-    const chasing = slime.autoAction==='board' && !slime.riding;
-    if(!chasing){
-      b.phase += dt*0.35;
-    }
-    const theta = Math.sin(b.phase)*1.15;
-    const bx = LAKE.x + Math.cos(theta)*3.2;
-    const bz = LAKE.z + Math.sin(theta)*3.2;
-    const dx = bx - b.group.position.x, dz = bz - b.group.position.z;
-    if(Math.hypot(dx,dz) > 0.0005) b.heading = Math.atan2(dx,dz);
-    b.bobPhase += dt;
-    b.group.position.set(bx, WATER_Y+Math.sin(S.time*1.6)*0.04, bz);
-    b.group.rotation.y = lerp(b.group.rotation.y, b.heading, Math.min(1,dt*4));
-    b.group.rotation.z = Math.sin(S.time*1.8)*0.03;
-    b.oar.rotation.z = 0.5+Math.sin(S.time*3)*0.25;
-    if(Math.random()<dt*1.2) spawnRipple(bx+rand(-0.8,0.8), bz+rand(-0.8,0.8), 0.9);
-  }
-
   /* 气球 */
   for(const bl of balloons){
     if(bl.userData.state==='tied'){
@@ -3171,7 +3037,7 @@ function updateFacilities(dt){
       bl.position.x += Math.sin(S.time*0.8+bl.userData.phase)*dt*0.8;
       bl.position.z += Math.cos(S.time*0.7+bl.userData.phase)*dt*0.6;
       bl.rotation.z = Math.sin(S.time*1.5)*0.15;
-      if(bl.position.y>26){ bl.userData.state='gone'; bl.userData.respawn=8; bl.visible=false; }
+      if(bl.position.y>14){ bl.userData.state='gone'; bl.userData.respawn=8; bl.visible=false; }
     } else if(bl.userData.state==='popped' || bl.userData.state==='gone'){
       bl.userData.respawn -= dt;
       if(bl.userData.respawn<=0){
@@ -3251,7 +3117,7 @@ function updateFacilities(dt){
     b.position.x += Math.sin(b.userData.phase)*dt*0.25;
     b.position.z += Math.cos(b.userData.phase*0.8)*dt*0.25;
     b.scale.setScalar(1+Math.sin(b.userData.phase*3)*0.06);
-    if(b.position.y>7){
+    if(b.position.y>5){
       const j = interactables.indexOf(b);
       if(j>=0) interactables.splice(j,1);
       scene.remove(b);
@@ -3265,9 +3131,9 @@ function updateFacilities(dt){
     if(k.state==='fly'){
       k.t += dt/9;
       k.group.position.set(
-        k.stake.x + Math.sin(k.t*Math.PI*5)*2.6,
-        k.stake.y + 3.6 + Math.sin(k.t*Math.PI*7)*1.1 + Math.sin(k.t*TAU)*0.4,
-        k.stake.z + Math.cos(k.t*Math.PI*3.4)*2.4
+        k.stake.x + Math.sin(k.t*Math.PI*5)*1.6,
+        k.stake.y + 2.6 + Math.sin(k.t*Math.PI*7)*0.8 + Math.sin(k.t*TAU)*0.3,
+        k.stake.z + Math.cos(k.t*Math.PI*3.4)*1.5
       );
       k.group.rotation.y += dt*2;
       k.group.rotation.z = 0.25 + Math.sin(k.t*20)*0.15;
@@ -3417,7 +3283,7 @@ function updateEnvironment(dt){
   // 云
   for(const c of clouds){
     c.position.x += c.userData.speed*dt;
-    if(c.position.x>30) c.position.x = -30;
+    if(c.position.x>16) c.position.x = -16;
   }
 
   // 雨/雪
@@ -3429,17 +3295,17 @@ function updateEnvironment(dt){
     const pa = rainPts.geometry.attributes.position;
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*24;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(8,11); pa.array[i*3]=rand(-12,12); pa.array[i*3+2]=rand(-12,12); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(4.5,6.5); pa.array[i*3]=rand(-7,7); pa.array[i*3+2]=rand(-7,7); }
     }
     pa.needsUpdate = true;
-    if(AU.ctx && Math.random()<dt*8) spawnRipple(rand(LAKE.x-6,LAKE.x+6), rand(LAKE.z-6,LAKE.z+6), 0.5);
+    if(AU.ctx && Math.random()<dt*8) spawnRipple(rand(LAKE.x-1.5,LAKE.x+1.5), rand(LAKE.z-1.5,LAKE.z+1.5), 0.5);
   }
   if(snowOn){
     const pa = snowPts.geometry.attributes.position;
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*1.6;
       pa.array[i*3] += Math.sin(S.time+i)*dt*0.4;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(7,10); pa.array[i*3]=rand(-12,12); pa.array[i*3+2]=rand(-12,12); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(4,5.5); pa.array[i*3]=rand(-7,7); pa.array[i*3+2]=rand(-7,7); }
     }
     pa.needsUpdate = true;
     terrainMat.color.lerp(new THREE.Color(1.5,1.55,1.7), dt*0.5);
@@ -3495,8 +3361,8 @@ function updateParticles(dt){
 /* --- 相机 --- */
 function updateCamera(dt){
   cam.intro += dt;
-  const targetR = cam.intro<2.2 ? lerp(13,7,smooth(0,1,cam.intro/2.2)) : cam.radius;
-  const t = slime.riding ? boat.group.position : slime.pos;
+  const targetR = cam.intro<2.2 ? lerp(7.5,4,smooth(0,1,cam.intro/2.2)) : cam.radius;
+  const t = slime.pos;
   cam.target.lerp(V3(t.x, t.y+0.9, t.z), Math.min(1, dt*3));
   const r = lerp(cam.radius, targetR, cam.intro<2.2?1:0);
   const x = cam.target.x + r*Math.sin(cam.phi)*Math.sin(cam.theta);
