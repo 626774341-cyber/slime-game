@@ -52,6 +52,17 @@
             cursor: pointer; box-shadow: 0 2px 6px rgba(60,90,140,.25); }
   .swatch:hover { transform: scale(1.15); }
   .swatch.rainbow { background: conic-gradient(#ff6b6b,#ffb56b,#ffe45e,#6bde7c,#5ec8ff,#b78aff,#ff6bd8,#ff6b6b); }
+  /* 输入变身面板 */
+  #textPanel { position: fixed; right: 72px; bottom: 170px; padding: 10px; display: none;
+               gap: 8px; z-index: 7; }
+  #textPanel.open { display: flex; }
+  #textInput { width: 120px; font-size: 15px; padding: 6px 9px; border-radius: 10px;
+               border: 2px solid rgba(120,160,200,.4); outline: none; background: #fff;
+               color: #2c4a66; font-family: inherit; }
+  #textInput:focus { border-color: #54c8ff; }
+  #textGo { border: none; border-radius: 10px; padding: 7px 13px; font-size: 14px; cursor: pointer;
+            background: rgba(126,200,250,.95); color: #16324a; font-weight: 600; }
+  #textGo:active { transform: scale(.94); }
   /* 心情条 */
   #moodCard { bottom: 16px; left: 18px; padding: 10px 14px; display: flex; align-items: center;
               gap: 8px; animation: riseUp .8s .45s ease both; }
@@ -99,7 +110,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.0 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.1 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -135,9 +146,15 @@
   <div class="swatch rainbow" data-i="6" title="彩虹模式"></div>
 </div>
 
+<div id="textPanel" class="card">
+  <input id="textInput" maxlength="2" placeholder="字 / emoji" />
+  <button id="textGo">变身！</button>
+</div>
+
 <div id="toolbar">
   <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
   <button class="card tool" id="shapeBtn" title="变形药水：换个形状">🧪</button>
+  <button class="card tool" id="textShapeBtn" title="输入变身：变成你写的字 / emoji">✍️</button>
   <button class="card tool" id="plantBtn" title="种花模式：点击地面种花">🌱</button>
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
@@ -152,7 +169,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ================= 小工具 ================= */
 const { clamp, lerp } = THREE.MathUtils;
@@ -2317,14 +2334,12 @@ function getShapeGeo(i) {
   if (shapeCache[i]) return shapeCache[i];
   let g;
   if (i === 1) {                                    // 小方块
-    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
+    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 4, 4, 4);
     g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
-    g.computeVertexNormals();
   } else if (i === 2) {                             // 甜甜圈
-    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
+    g = new THREE.TorusGeometry(0.95, 0.52, 16, 30);
     g.rotateX(Math.PI / 2);
     g.translate(0, -0.1525, 0);
-    g.computeVertexNormals();
   } else if (i === 3) {                             // 布丁
     const pts = [
       new THREE.Vector2(0.001, 0),
@@ -2334,27 +2349,93 @@ function getShapeGeo(i) {
       new THREE.Vector2(0.32, 0.9),
       new THREE.Vector2(0.001, 0.99),
     ];
-    g = new THREE.LatheGeometry(pts, 26);
+    g = new THREE.LatheGeometry(pts, 28);
     g.scale(1.05, 1.42, 1.05);
     g.translate(0, -0.6725, 0);
-    g.computeVertexNormals();
   } else {
-    g = slimeGeoMerged;                             // 圆滚滚
+    return slimeGeoMerged;                          // 圆滚滚（本来就是焊接好的）
   }
+  // 关键修复（v2.1）：方块 / 甜甜圈 / 布丁的原始几何在棱边和接缝处有
+  // 位置重合但法线不同的重复顶点，果冻抖动沿各自法线位移会把表面撕裂（"散架"）。
+  // 去掉 uv / normal 后按位置焊接成完整表面，再重算法线，抖动就不会裂开了
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g = mergeVertices(g, 1e-4);
+  g.computeVertexNormals();
   shapeCache[i] = g;
   return g;
 }
+// —— 输入变身：把文字 / emoji 变成像素果冻（v2.1 新增） ——
+let customShapeName = null;
+let customShapeGeo = null;
+function buildTextGeo(text) {
+  const FONT = '100px "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+  const cv = document.createElement('canvas');
+  let ctx = cv.getContext('2d');
+  ctx.font = FONT;
+  cv.width = Math.max(Math.ceil(ctx.measureText(text).width) + 24, 64);
+  cv.height = 132;
+  ctx = cv.getContext('2d');          // 设置宽高后上下文重置，重新获取
+  ctx.font = FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cv.width / 2, cv.height / 2 + 4);
+  const img = ctx.getImageData(0, 0, cv.width, cv.height).data;
+  // 采样成小格子 → 一格格小方块拼成像素剪影（各自独立，天然不会被果冻抖动撕裂）
+  const cellPx = 6;
+  const cols = Math.floor(cv.width / cellPx), rows = Math.floor(cv.height / cellPx);
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = c * cellPx + cellPx / 2, py = r * cellPx + cellPx / 2;
+      if (img[(py * cv.width + px) * 4 + 3] > 120) cells.push([c, r]);
+    }
+  }
+  if (cells.length < 3) return null;
+  const wpc = Math.min(1.9 / cols, 1.7 / rows);       // 世界尺寸：宽 ≤ 1.9、高 ≤ 1.7
+  const box = new THREE.BoxGeometry(wpc * 0.94, wpc * 0.94, 1.15);
+  const parts = cells.map(([c, r]) => {
+    const b = box.clone();
+    b.translate((c - cols / 2 + 0.5) * wpc, (rows - 1 - r) * wpc + wpc / 2 - 0.6725, 0);
+    return b;
+  });
+  const g = mergeGeometries(parts, false);
+  box.dispose();
+  return g;
+}
+function applyTextShape() {
+  ensureAudio();
+  const raw = document.getElementById('textInput').value.trim().slice(0, 2);
+  if (!raw) { toast('先输入一个字或 emoji 呀～'); return; }
+  const g = buildTextGeo(raw);
+  if (!g) { toast('这个我变不出来，换一个试试？'); return; }
+  customShapeGeo = g;
+  customShapeName = raw;
+  slimeShapeIdx = 4;
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  spawnSparkles(8);
+  say('变——' + raw + '！');
+  toast('✨ 变成了「' + raw + '」！点 🧪 可轮流切换形状');
+  blip(240, 980, 0.22, 0.13);
+  document.getElementById('textPanel').classList.remove('open');
+}
 function cycleShape() {
   ensureAudio();
-  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
-  const g = getShapeGeo(slimeShapeIdx);
+  const list = shapeList();
+  slimeShapeIdx = (slimeShapeIdx + 1) % list.length;
+  const g = slimeShapeIdx < 4 ? getShapeGeo(slimeShapeIdx) : customShapeGeo;
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   spawnSparkles(6);
   say('变——！');
-  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
+  toast('🧪 变成了' + list[slimeShapeIdx]);
   blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
+}
+function shapeList() {
+  return customShapeGeo ? SHAPE_NAMES.concat(['「' + customShapeName + '」']) : SHAPE_NAMES.slice();
 }
 
 // —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
@@ -2540,6 +2621,19 @@ document.getElementById('chiliBtn').addEventListener('click', spawnChili);
 document.getElementById('ballBtn').addEventListener('click', toggleBall);
 document.getElementById('starBtn').addEventListener('click', toggleStarGame);
 document.getElementById('shapeBtn').addEventListener('click', cycleShape);
+document.getElementById('textShapeBtn').addEventListener('click', () => {
+  ensureAudio();
+  const panel = document.getElementById('textPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) document.getElementById('textInput').focus();
+  blip(600, 900, 0.08, 0.08);
+});
+document.getElementById('textGo').addEventListener('click', applyTextShape);
+// 输入框里的按键不要漏到全局快捷键（空格=超级跳 / B=跳舞）
+document.getElementById('textInput').addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') applyTextShape();
+});
 document.getElementById('babyBtn').addEventListener('click', toggleBaby);
 document.getElementById('hatBtn').addEventListener('click', cycleHat);
 document.getElementById('danceBtn').addEventListener('click', startDance);
@@ -2555,6 +2649,15 @@ weatherBtn.addEventListener('click', () => {
   weatherBtn.textContent = ['☔', '❄️', '☀️'][weather.mode];
   toast(['☔ 下雨啦！史莱姆最喜欢雨天～', '❄️ 下雪了，好安静呀…', '☀️ 天晴啦！'][weather.mode]);
   blip(500, 760, 0.12, 0.08);
+});
+// 昼夜切换（v2.1 修复：此监听器在早前版本覆写中丢失，导致 🌙 点击无反应）
+const nightBtn = document.getElementById('nightBtn');
+nightBtn.addEventListener('click', () => {
+  ensureAudio();
+  dnState.target = dnState.target === 0 ? 1 : 0;
+  nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
+  toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  blip(dnState.target === 1 ? 400 : 600, dnState.target === 1 ? 180 : 1000, 0.25, 0.1);
 });
 // 拍照模式：隐藏界面 + 尝试保存快照
 const photoBtn = document.getElementById('photoBtn');
