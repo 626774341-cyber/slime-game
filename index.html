@@ -60,6 +60,10 @@
              overflow: hidden; }
   #moodFill { height: 100%; width: 62%; border-radius: 999px; background: #5fd07a; transition: width .3s ease; }
   #moodLabel { font-size: 12px; opacity: .8; }
+  /* 摘星挑战计分板 */
+  #starHud { top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 20px;
+             font-size: 15px; font-weight: 600; display: none; }
+  #starHud.show { display: block; }
   /* 提示气泡 */
   #toast { position: fixed; bottom: 86px; left: 50%; transform: translate(-50%, 8px);
            background: rgba(35,58,82,.82); color: #fff; font-size: 13px; padding: 8px 18px;
@@ -95,7 +99,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.0.1 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v1.1 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -117,6 +121,8 @@
   <span id="moodLabel">心情</span>
 </div>
 
+<div id="starHud" class="card">⭐ 0 / 5</div>
+
 <div id="toast"></div>
 
 <div id="palettePanel" class="card">
@@ -130,6 +136,8 @@
 </div>
 
 <div id="toolbar">
+  <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
+  <button class="card tool" id="shapeBtn" title="变形药水：换个形状">🧪</button>
   <button class="card tool" id="plantBtn" title="种花模式：点击地面种花">🌱</button>
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
@@ -549,6 +557,238 @@ function updateWeatherFx(dt, t) {
   if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
 }
 
+/* ================= 第四波：摘星挑战 / 变形 / 成就 / 小鱼 ================= */
+
+// —— 成就系统（localStorage 持久化） ——
+const ACH_DEFS = {
+  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
+  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
+  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
+  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
+  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
+  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
+  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
+  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
+  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
+};
+let achData;
+try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
+achData.unlocked = achData.unlocked || {};
+achData.c = achData.c || {};
+function saveAch() {
+  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
+}
+function achCelebrate(def) {
+  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
+  blip(660, 1320, 0.14, 0.1);
+  blip(880, 1760, 0.16, 0.1, 0.12);
+}
+function achInc(id, add) {
+  const def = ACH_DEFS[id];
+  if (!def || achData.unlocked[id]) return;
+  achData.c[id] = (achData.c[id] || 0) + add;
+  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
+  saveAch();
+  if (achData.unlocked[id]) achCelebrate(def);
+}
+function achUnlockNow(id) {
+  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
+  achData.unlocked[id] = true;
+  saveAch();
+  achCelebrate(ACH_DEFS[id]);
+}
+
+// —— 摘星挑战 ——
+const starShapeGeo = (() => {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.17 : 0.075;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
+})();
+const starGame = { active: false, stars: [], collected: 0, total: 5 };
+function toggleStarGame() {
+  ensureAudio();
+  if (starGame.active) {
+    starGame.stars.forEach(s => scene.remove(s.mesh));
+    starGame.stars = [];
+    starGame.active = false;
+    document.getElementById('starHud').classList.remove('show');
+    toast('摘星挑战取消');
+    blip(420, 240, 0.15, 0.08);
+    return;
+  }
+  starGame.active = true;
+  starGame.collected = 0;
+  starGame.stars = [];
+  for (let i = 0; i < starGame.total; i++) {
+    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
+    let x = 0, z = 0, ok = false, tries = 0;
+    while (!ok && tries < 40) {
+      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
+           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
+           !inPond(x, z);
+      tries++;
+    }
+    mesh.position.set(x, 0.55, z);
+    scene.add(mesh);
+    starGame.stars.push({ mesh, ph: Math.random() * 6 });
+  }
+  const hud = document.getElementById('starHud');
+  hud.textContent = '⭐ 0 / ' + starGame.total;
+  hud.classList.add('show');
+  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
+  say('摘星星咯！');
+  blip(520, 1040, 0.15, 0.1);
+}
+function collectStar(s) {
+  scene.remove(s.mesh);
+  starGame.collected++;
+  const hud = document.getElementById('starHud');
+  if (starGame.collected >= starGame.total) {
+    starGame.active = false;
+    hud.textContent = '⭐ 全部收集！';
+    setTimeout(() => hud.classList.remove('show'), 1400);
+    mood.happy = Math.min(100, mood.happy + 26);
+    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
+      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
+    for (let k = 0; k < 4; k++) {
+      spawnHeart(new THREE.Vector3(
+        slime.pos.x + (Math.random() - 0.5) * 0.8,
+        slime.pos.y + 1.2 + k * 0.2,
+        slime.pos.z));
+    }
+    toast('⭐ 全部收集完成！史莱姆太棒了！');
+    say('全部拿到啦！');
+    blip(523, 523, 0.12, 0.1);
+    blip(659, 659, 0.12, 0.1, 0.12);
+    blip(784, 784, 0.12, 0.1, 0.24);
+    blip(1047, 1047, 0.25, 0.12, 0.36);
+    achInc('star1', 1);
+  } else {
+    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
+    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
+    blip(880, 1560, 0.12, 0.12);
+    mood.happy = Math.min(100, mood.happy + 4);
+  }
+}
+function updateStarGame(dt, t) {
+  if (!starGame.active) return;
+  for (const s of starGame.stars) {
+    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
+    s.mesh.rotation.y += dt * 1.6;
+  }
+}
+
+// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
+const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
+let slimeShapeIdx = 0;
+const shapeCache = {};
+function getShapeGeo(i) {
+  if (shapeCache[i]) return shapeCache[i];
+  let g;
+  if (i === 1) {                                    // 小方块
+    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 3, 3, 3);
+    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
+    g.computeVertexNormals();
+  } else if (i === 2) {                             // 甜甜圈
+    g = new THREE.TorusGeometry(0.95, 0.52, 14, 28);
+    g.rotateX(Math.PI / 2);
+    g.translate(0, -0.1525, 0);
+    g.computeVertexNormals();
+  } else if (i === 3) {                             // 布丁
+    const pts = [
+      new THREE.Vector2(0.001, 0),
+      new THREE.Vector2(0.72, 0),
+      new THREE.Vector2(0.95, 0.26),
+      new THREE.Vector2(0.82, 0.6),
+      new THREE.Vector2(0.32, 0.9),
+      new THREE.Vector2(0.001, 0.99),
+    ];
+    g = new THREE.LatheGeometry(pts, 26);
+    g.scale(1.05, 1.42, 1.05);
+    g.translate(0, -0.6725, 0);
+    g.computeVertexNormals();
+  } else {
+    g = slimeGeoMerged;                             // 圆滚滚
+  }
+  shapeCache[i] = g;
+  return g;
+}
+function cycleShape() {
+  ensureAudio();
+  slimeShapeIdx = (slimeShapeIdx + 1) % SHAPE_NAMES.length;
+  const g = getShapeGeo(slimeShapeIdx);
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  spawnSparkles(6);
+  say('变——！');
+  toast('🧪 变成了' + SHAPE_NAMES[slimeShapeIdx]);
+  blip(260 + slimeShapeIdx * 90, 900, 0.18, 0.12);
+}
+
+// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
+const fishes = [];
+{
+  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
+    body.rotation.x = Math.PI / 2;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = -0.13;
+    g.add(body, tail);
+    g.visible = false;
+    scene.add(g);
+    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
+  }
+}
+function fishJump() {
+  const f = fishes.find(f => !f.jumping);
+  if (!f) return;
+  const a = Math.random() * Math.PI * 2;
+  const r0 = Math.random() * 0.5;
+  const a2 = a + 1.2 + Math.random() * 1.2;
+  const r1 = 0.3 + Math.random() * 0.5;
+  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
+  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
+  f.jumping = true;
+  f.pt = 0;
+  f.g.visible = true;
+  spawnRipple(f.p0.x, f.p0.z, 0.4);
+  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
+  blip(320, 720, 0.08, 0.06);
+}
+function updateFishes(dt) {
+  for (const f of fishes) {
+    if (f.jumping) {
+      f.pt += dt / 0.85;
+      if (f.pt >= 1) {
+        f.jumping = false;
+        f.g.visible = false;
+        f.cool = 2.5 + Math.random() * 4.5;
+        spawnRipple(f.p1.x, f.p1.z, 0.35);
+      } else {
+        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
+        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
+        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
+        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
+      }
+    } else {
+      f.cool -= dt;
+      if (f.cool <= 0) fishJump();
+    }
+  }
+}
+
 /* ================= 史莱姆本体 ================= */
 // 1) 果冻身体：球体压平底 + 顶点级弹簧抖动
 const slimeGeo = new THREE.SphereGeometry(0.9, 48, 32);
@@ -564,8 +804,8 @@ const slimeGeo = new THREE.SphereGeometry(0.9, 48, 32);
 const slimeGeoMerged = mergeVertices(slimeGeo, 1e-4);
 slimeGeoMerged.computeVertexNormals();
 slimeGeoMerged.computeBoundingSphere();
-const basePos = Float32Array.from(slimeGeoMerged.attributes.position.array);
-const baseNor = Float32Array.from(slimeGeoMerged.attributes.normal.array);
+let basePos = Float32Array.from(slimeGeoMerged.attributes.position.array);
+let baseNor = Float32Array.from(slimeGeoMerged.attributes.normal.array);
 
 const slimeMat = new THREE.MeshPhysicalMaterial({
   color: 0x54c8ff,
@@ -732,6 +972,7 @@ function setSlimeColor(i) {
     slimeMat.attenuationColor.setHex(col.a);
   }
   toast('变成了' + col.n);
+  achInc('color5', 1);
   blip(420, 900, 0.12, 0.1);
   document.getElementById('palettePanel').classList.remove('open');
 }
@@ -1104,6 +1345,7 @@ function landFx(impact) {
     spawnDebris(new THREE.Vector3(MUSH.x, 0.7, MUSH.z), 10, SPARKLE_COLORS, 4, 1.4, 2.4);
     blip(80, 340, 0.32, 0.2);
     say('起飞咯！');
+    achInc('mush5', 1);
   }
   if (inPond(slime.pos.x, slime.pos.z)) pondSplash(impact);
 }
@@ -1155,6 +1397,7 @@ function startDance() {
   slime.noteT = 0;
   say('跟上节奏♪');
   toast('♪ 开始跳舞！');
+  achInc('dance3', 1);
 }
 function megaJump() {
   if (slime.mode !== 'free' || slime.pos.y > GROUND_Y + 0.05 || slime.danceT > 0) return;
@@ -1165,6 +1408,7 @@ function megaJump() {
   spawnSparkles(5);
   say('起飞咯！');
   blip(160, 540, 0.2, 0.16);
+  achInc('mega5', 1);
 }
 function computeHopLeg() {
   const H = slime.hop;
@@ -1236,6 +1480,7 @@ function eatFood(f) {
   f.eaten = true;
   f.resting = false;
   slime.chompT = 0.62;
+  achInc('feed5', 1);
   if (f.type === 'chili') {
     // 吃辣椒：辣到满地乱窜
     slime.zoomT = 3.5;
@@ -1411,6 +1656,7 @@ function updateBall(dt) {
     const kz = (ball.pos.z - slime.pos.z) / (d || 1);
     ball.vel.set(kx * 4.2, 4.6, kz * 4.2);
     mood.happy = Math.min(100, mood.happy + 3);
+    achInc('kick10', 1);
     spawnDebris(ball.pos, 3, SPARKLE_COLORS, 4);
     blip(260, 560, 0.09, 0.1);
     slime.wob2.v += 2;
@@ -1494,6 +1740,7 @@ function toggleBaby() {
   } else {
     spawnBaby();
     toast('🥚 史莱姆宝宝出现啦！');
+    if (babies.length >= 3) achUnlockNow('baby3');
     blip(600, 980, 0.14, 0.12);
   }
 }
@@ -1793,6 +2040,7 @@ window.addEventListener('pointerup', (e) => {
     if (!drag.moved && quick) {
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(groundPlane, _v)) {
+        if (inPond(_v.x, _v.z)) fishJump();
         if (plantMode) plantFlower(_v.x, _v.z);
         else startHops(_v);
       }
@@ -1936,7 +2184,8 @@ function updateSlime(dt, t) {
   );
 
   // 顶点抖动：沿原始法线叠加两个衰减正弦模态 + 顶部滞后偏移
-  const posArr = slimeGeoMerged.attributes.position.array;
+  const curGeo = slimeMesh.geometry;
+  const posArr = curGeo.attributes.position.array;
   for (let i = 0; i < posArr.length; i += 3) {
     const bx = basePos[i], by = basePos[i + 1], bz = basePos[i + 2];
     const nx = baseNor[i], ny = baseNor[i + 1], nz = baseNor[i + 2];
@@ -1948,8 +2197,8 @@ function updateSlime(dt, t) {
     posArr[i + 1] = by + ny * d;
     posArr[i + 2] = bz + nz * d + S.lean.z * hh;
   }
-  slimeGeoMerged.attributes.position.needsUpdate = true;
-  slimeGeoMerged.computeVertexNormals();
+  curGeo.attributes.position.needsUpdate = true;
+  curGeo.computeVertexNormals();
 
   slimeGroup.updateMatrixWorld(true);
 }
@@ -2028,6 +2277,7 @@ function updateGameLogic(dt, t) {
   }
   if (pet.active) {
     mood.happy = Math.min(100, mood.happy + dt * 7);
+    achInc('pet10', dt);
     pet.pulse -= dt;
     if (pet.pulse <= 0) {
       pet.pulse = 0.26;
@@ -2056,9 +2306,32 @@ function updateGameLogic(dt, t) {
     }
   }
 
+  // --- 摘星挑战：碰到星星就收集，并自动追下一颗 ---
+  if (starGame.active && S.mode === 'free' && !pet.active && S.danceT <= 0 && S.chompT <= 0 && S.zoomT <= 0) {
+    for (let i = starGame.stars.length - 1; i >= 0; i--) {
+      const st = starGame.stars[i];
+      const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
+      if (d < 0.65 && S.pos.y < 1.1) {
+        collectStar(st);
+        starGame.stars.splice(i, 1);
+      }
+    }
+    if (starGame.active && starGame.stars.length > 0 && S.pos.y <= GROUND_Y + 0.05 && S.hopCooldown <= 0) {
+      let best = null, bd = 99;
+      for (const st of starGame.stars) {
+        const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
+        if (d < bd) { bd = d; best = st; }
+      }
+      if (best && bd > 0.7 && bd < 9) {
+        S.hopCooldown = 1.0;
+        startHops(best.mesh.position);
+      }
+    }
+  }
+
   // --- 没有吃的就去追球玩 ---
   if (ball && ball.mode === 'free' && S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 &&
-      S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35) {
+      S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
     const hasFood = foods.some(f => !f.eaten && f.resting);
     const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
     if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
@@ -2113,6 +2386,8 @@ function toast(txt) {
 document.getElementById('feedBtn').addEventListener('click', spawnFood);
 document.getElementById('chiliBtn').addEventListener('click', spawnChili);
 document.getElementById('ballBtn').addEventListener('click', toggleBall);
+document.getElementById('starBtn').addEventListener('click', toggleStarGame);
+document.getElementById('shapeBtn').addEventListener('click', cycleShape);
 document.getElementById('babyBtn').addEventListener('click', toggleBaby);
 document.getElementById('hatBtn').addEventListener('click', cycleHat);
 document.getElementById('danceBtn').addEventListener('click', startDance);
@@ -2179,6 +2454,8 @@ function tickBody() {
   updateFoods(dt);
   updateBall(dt);
   updatePlants(dt);
+  updateStarGame(dt, t);
+  updateFishes(dt);
   updateBabies(dt, t);
   updateButterflies(dt, t);
   updateFireflies(t);
