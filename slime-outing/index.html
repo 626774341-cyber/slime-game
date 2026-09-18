@@ -25,8 +25,16 @@
   canvas{display:block;}
 
   /* ---------- 通用 UI 卡片 ---------- */
-  .ui{position:fixed;z-index:10;transition:opacity .4s ease, transform .4s ease;}
-  body.photo-mode .ui{opacity:0 !important;pointer-events:none !important;}
+  #rightPanel{
+    position:fixed;top:14px;right:14px;z-index:10;
+    display:flex;flex-direction:column;gap:10px;align-items:flex-end;
+    transition:opacity .4s ease;
+  }
+  #moodCard{
+    position:fixed;right:14px;bottom:14px;z-index:10;
+    transition:opacity .4s ease;
+  }
+  body.photo-mode #rightPanel, body.photo-mode #moodCard{opacity:0 !important;pointer-events:none !important;}
 
   .card{
     background:var(--card-bg);
@@ -37,7 +45,7 @@
   }
 
   /* 标题卡 */
-  #titleCard{top:14px;left:14px;padding:12px 16px 10px;max-width:280px;}
+  #titleCard{padding:12px 16px 10px;max-width:280px;}
   #titleCard h1{font-size:19px;letter-spacing:.5px;}
   #titleCard .sub{font-size:11px;opacity:.72;margin-top:3px;}
   #verChip{
@@ -52,7 +60,7 @@
   #homeLink:hover{background:#d0eaff;}
 
   /* 右上角功能按钮 */
-  #topBtns{top:14px;right:14px;display:flex;gap:9px;}
+  #topBtns{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;max-width:320px;}
   .iconBtn{
     width:46px;height:46px;border-radius:50%;
     background:var(--card-bg);border:1px solid var(--card-border);
@@ -65,16 +73,16 @@
   .iconBtn:active{transform:scale(.92);}
 
   /* 玩法提示卡 */
-  #helpCard{top:72px;right:14px;padding:11px 14px;font-size:12px;line-height:1.9;max-width:230px;}
+  #helpCard{position:relative;padding:11px 14px;font-size:12px;line-height:1.9;max-width:230px;}
   #helpCard b{font-size:12.5px;}
   #helpCard .hl{color:#e0567f;font-weight:600;}
   #helpClose{position:absolute;top:6px;right:10px;cursor:pointer;opacity:.5;font-size:13px;}
   #helpClosed{
-    top:72px;right:14px;padding:10px 14px;font-size:16px;cursor:pointer;display:none;
+    padding:10px 14px;font-size:16px;cursor:pointer;display:none;
   }
 
   /* 心情卡 */
-  #moodCard{left:14px;bottom:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;min-width:210px;}
+  #moodCard{padding:12px 16px;display:flex;align-items:center;gap:12px;min-width:190px;}
   #moodEmoji{font-size:40px;line-height:1;transition:transform .2s;}
   #moodEmoji.bounce{animation:mb .5s ease;}
   @keyframes mb{0%{transform:scale(1)}40%{transform:scale(1.35) rotate(-8deg)}100%{transform:scale(1)}}
@@ -82,8 +90,6 @@
   #moodLabel{font-size:12px;opacity:.75;}
   #moodBarWrap{width:130px;height:8px;background:#e8efe6;border-radius:99px;overflow:hidden;}
   #moodBar{height:100%;width:70%;background:linear-gradient(90deg,#ffd36e,#ff8fb0);border-radius:99px;transition:width .3s;}
-  #starRow{font-size:13px;cursor:pointer;margin-top:2px;}
-  #taskHint{font-size:11px;color:#7a8a7d;margin-top:2px;max-width:150px;}
 
   /* toast */
   #toasts{top:18px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;z-index:30;position:fixed;}
@@ -153,55 +159,56 @@
   <div id="loadErr"></div>
 </div>
 
-<!-- 标题卡 -->
-<div class="ui card" id="titleCard">
-  <h1>🧺 史莱姆郊游 · 3D</h1>
-  <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-  <span id="verChip">v1.1.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
-</div>
+<!-- 右侧面板 -->
+<div id="rightPanel">
+  <!-- 标题卡 -->
+  <div class="card" id="titleCard">
+    <h1>🧺 史莱姆郊游 · 3D</h1>
+    <div class="sub">自然探索资料片 · 人机交互小组作业</div>
+    <span id="verChip">v1.2.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+  </div>
 
-<!-- 右上按钮 -->
-<div class="ui" id="topBtns">
-  <div class="iconBtn" id="btnPhoto" title="拍照模式 (P)">📷</div>
-  <div class="iconBtn" id="btnWeather" title="切换天气 (W)">☀️</div>
-  <div class="iconBtn" id="btnNight" title="昼 / 夜 (N)">🌙</div>
-  <div class="iconBtn" id="btnSound" title="音效 (M)">🔊</div>
-  <div class="iconBtn" id="btnHat" title="换帽子 (F)">👒</div>
-  <div class="iconBtn" id="btnBaby" title="召唤史莱姆宝宝">🥚</div>
-</div>
+  <!-- 功能按钮 -->
+  <div id="topBtns">
+    <div class="iconBtn" id="btnPhoto" title="拍照模式 (P)">📷</div>
+    <div class="iconBtn" id="btnWeather" title="切换天气 (W)">☀️</div>
+    <div class="iconBtn" id="btnNight" title="昼 / 夜 (N)">🌙</div>
+    <div class="iconBtn" id="btnSound" title="音效 (M)">🔊</div>
+    <div class="iconBtn" id="btnHat" title="换帽子 (F)">👒</div>
+    <div class="iconBtn" id="btnBaby" title="召唤史莱姆宝宝">🥚</div>
+  </div>
 
-<!-- 玩法提示 -->
-<div class="ui card" id="helpCard">
-  <span id="helpClose">✕</span>
-  <b>🎒 郊游玩法</b><br>
-  🖐️ 拖动史莱姆 · 甩出去<br>
-  👆 点一下戳戳 · 🤚 长按抚摸<br>
-  🎯 点草地跳过去 · 点湖面游泳<br>
-  🍉 点野餐食物投喂<br>
-  🛶 点小船登船兜风<br>
-  🐰 点小动物交朋友<br>
-  🎈 点气球放飞 · 再点戳破<br>
-  🫧 点泡泡瓶吹泡泡 · 戳破它<br>
-  🪁 点风筝放飞 · 再点翻跟头<br>
-  🌸 点蒲公英吹散种子<br>
-  🤸 蹦床弹飞 · 🌿 点秋千推高高<br>
-  🎾 点玩具球开陪玩模式<br>
-  👒 帽子 (F) · 🥚 宝宝 · G 种花<br>
-  🍉 苹果补心情 · 🌶️ 辣椒喷火冲刺<br>
-  🔥 点篝火 · 📻 点收音机<br>
-  ⌨️ 空格大跳 · B 跳舞 · C 换色<br>
-  🔄 拖空白转视角 · 🔍 缩放
+  <!-- 玩法提示 -->
+  <div class="card" id="helpCard">
+    <span id="helpClose">✕</span>
+    <b>🎒 郊游玩法</b><br>
+    🖐️ 拖动史莱姆 · 甩出去<br>
+    👆 点一下戳戳 · 🤚 长按抚摸<br>
+    🎯 点草地跳过去 · 点湖面游泳<br>
+    🍉 点野餐食物投喂<br>
+    🛶 点小船登船兜风<br>
+    🐰 点小动物交朋友<br>
+    🎈 点气球放飞 · 再点戳破<br>
+    🫧 点泡泡瓶吹泡泡 · 戳破它<br>
+    🪁 点风筝放飞 · 再点翻跟头<br>
+    🌸 点蒲公英吹散种子<br>
+    🤸 蹦床弹飞 · 🌿 点秋千推高高<br>
+    🎾 点玩具球开陪玩模式<br>
+    👒 帽子 (F) · 🥚 宝宝 · G 种花<br>
+    🍉 苹果补心情 · 🌶️ 辣椒喷火冲刺<br>
+    🔥 点篝火 · 📻 点收音机<br>
+    ⌨️ 空格大跳 · B 跳舞 · C 换色<br>
+    🔄 拖空白转视角 · 🔍 缩放
+  </div>
+  <div class="card" id="helpClosed">❓</div>
 </div>
-<div class="ui card" id="helpClosed">❓</div>
 
 <!-- 心情卡 -->
-<div class="ui card" id="moodCard">
+<div class="card" id="moodCard">
   <div id="moodEmoji">🙂</div>
   <div id="moodRight">
     <div id="moodLabel">心情</div>
     <div id="moodBarWrap"><div id="moodBar"></div></div>
-    <div id="starRow">⭐ 0 / 5</div>
-    <div id="taskHint">🤚 长按史莱姆摸摸它</div>
   </div>
 </div>
 
@@ -243,30 +250,20 @@ const V3    = (x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
    全局状态
 ================================================================ */
 const WATER_Y = -0.35;
-const LAKE = { x:-9, z:6, r:7 };
-const ISLAND = { x:-10.6, z:4.5, r:1.9 };
-const PLAY_R = 22;
+const LAKE = { x:-4.5, z:3, r:4.2 };
+const ISLAND = { x:-5.6, z:2.1, r:0.9 };
+const PLAY_R = 12;
 
 const S = {
   time:0, night:0, nightTarget:0,
   weather:'sun',          // sun | rain | snow
   sound:true, photo:false,
   mood:70,
-  stars:0, celebrated:false,
   slimeColorIdx:0,
   snowT:0, snowmanOn:false,
   rainbowT:0, pendingRainbow:false,
   helpShown:true,
 };
-
-const TASKS = [
-  { id:'pet',    name:'长按抚摸史莱姆', hint:'🤚 长按史莱姆摸摸它' },
-  { id:'feed',   name:'喂它吃一次点心', hint:'🍉 点野餐布上的食物投喂' },
-  { id:'swim',   name:'带它下水游个泳', hint:'🏊 点湖面让它跳进去' },
-  { id:'boat',   name:'乘小船湖上兜风', hint:'🛶 点湖上的小船登船' },
-  { id:'animal', name:'和小动物交朋友', hint:'🐰 点小兔子或小鸭子喂食' },
-];
-const doneTasks = new Set();
 
 /* ================================================================
    DOM
@@ -274,7 +271,7 @@ const doneTasks = new Set();
 const $ = id=>document.getElementById(id);
 const ui = {
   loading:$('loading'), loadErr:$('loadErr'),
-  moodEmoji:$('moodEmoji'), moodBar:$('moodBar'), starRow:$('starRow'), taskHint:$('taskHint'),
+  moodEmoji:$('moodEmoji'), moodBar:$('moodBar'),
   toasts:$('toasts'), modalWrap:$('modalWrap'), modalTitle:$('modalTitle'), modalBody:$('modalBody'),
   btnPhoto:$('btnPhoto'), btnWeather:$('btnWeather'), btnNight:$('btnNight'), btnSound:$('btnSound'),
   btnHat:$('btnHat'), btnBaby:$('btnBaby'),
@@ -304,6 +301,12 @@ $('homeLink').addEventListener('click', e=>{
 ui.modalWrap.onclick = e=>{ if(e.target===ui.modalWrap) ui.modalWrap.classList.remove('show'); };
 
 $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
+  <h3>v1.2.0 简化版</h3>
+  <ul>
+    <li>🗑️ 移除任务/星级系统，回归纯粹的玩具箱玩法</li>
+    <li>🧱 地图缩小到箱庭世界同款尺寸，一眼尽收</li>
+    <li>🪟 全部 UI 面板移到屏幕右侧</li>
+  </ul>
   <h3>v1.1.0 箱庭玩法全面移植</h3>
   <ul>
     <li>🏠「回箱庭」直连 GitHub Pages 最新版</li>
@@ -320,16 +323,7 @@ $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
     <li>🛶 木筏小船：登船环湖兜风 · 🪷 荷叶蹦蹦床 · 🍄 弹弹蘑菇</li>
     <li>🎈 气球放飞与戳破 · 🎁 小岛宝箱 · ⛄ 雪天堆雪人 · 🌈 雨后彩虹</li>
     <li>🔥 篝火 · 📻 收音机 BGM · 🌙 昼夜（夜晚萤火虫）· ☔ 晴/雨/雪</li>
-    <li>⭐ 五个郊游任务，全部完成触发惊喜庆典 + 史莱姆宝宝</li>
   </ul>`);
-
-ui.starRow.onclick = ()=>{
-  const rows = TASKS.map(t=>{
-    const done = doneTasks.has(t.id);
-    return `<li class="${done?'taskDone':'taskTodo'}">${done?'✅':'⬜'} ${t.name}</li>`;
-  }).join('');
-  openModal('⭐ 郊游任务 ' + S.stars + ' / 5', `<ul>${rows}</ul><p style="margin-top:8px">完成全部任务有惊喜奖励哦！</p>`);
-};
 
 ui.helpClosed.onclick = ()=>{ ui.helpCard.style.display='block'; ui.helpClosed.style.display='none'; S.helpShown=true; };
 $('helpClose').onclick = ()=>{ ui.helpCard.style.display='none'; ui.helpClosed.style.display='block'; S.helpShown=false; };
@@ -582,14 +576,14 @@ $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fdcff);
-scene.fog = new THREE.Fog(0xcfeafd, 28, 80);
+scene.fog = new THREE.Fog(0xcfeafd, 20, 60);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 400);
 const cam = {
-  theta: -0.6, phi: 1.05, radius: 9.5, target: V3(0,1,0),
+  theta: -0.6, phi: 1.05, radius: 7, target: V3(0,1,0),
   intro: 0,
 };
 
@@ -647,7 +641,7 @@ const clouds = [];
       s.scale.y = 0.6;
       g.add(s);
     }
-    g.position.set(rand(-45,45), rand(13,19), rand(-45,45));
+    g.position.set(rand(-26,26), rand(10,14), rand(-26,26));
     g.userData.speed = rand(0.4,1.0);
     scene.add(g); clouds.push(g);
   }
@@ -662,7 +656,7 @@ function terrainHeight(x,z){
         + Math.sin(x*0.05+1.7)*0.85
         + Math.cos(z*0.06+0.6)*0.7
         + Math.sin((x+z)*0.05+2.4)*0.35;
-  h *= smooth(5.5, 15, r);          // 中心野营地压平
+  h *= smooth(4, 11, r);          // 中心野营地压平
   const dl = dist2d(x,z,LAKE.x,LAKE.z);
   h -= smooth(LAKE.r+3.5, LAKE.r-2.5, dl)*2.3;   // 湖盆
   const di = dist2d(x,z,ISLAND.x,ISLAND.z);
@@ -671,7 +665,7 @@ function terrainHeight(x,z){
 }
 // 湖心岛是地形的一部分，且高于水面 → groundInfo 会自然给出地面
 
-const terrainGeo = new THREE.PlaneGeometry(64,64,96,96);
+const terrainGeo = new THREE.PlaneGeometry(40,40,80,80);
 terrainGeo.rotateX(-Math.PI/2);
 {
   const pos = terrainGeo.attributes.position;
@@ -707,12 +701,12 @@ scene.add(terrain);
   const mtnMat = new THREE.MeshStandardMaterial({ color:0x8fae8b, roughness:1, flatShading:true });
   const snowMat = new THREE.MeshStandardMaterial({ color:0xf4f8fb, roughness:0.9, flatShading:true });
   const defs = [];
-  for(let i=0;i<10;i++){
-    const a = (i/10)*TAU + rand(-0.18,0.18);
-    const rr = rand(34,46);
-    defs.push({x:Math.cos(a)*rr, z:Math.sin(a)*rr, r:rand(6,11), h:rand(9,17)});
+  for(let i=0;i<8;i++){
+    const a = (i/8)*TAU + rand(-0.2,0.2);
+    const rr = rand(22,28);
+    defs.push({x:Math.cos(a)*rr, z:Math.sin(a)*rr, r:rand(4.5,7.5), h:rand(6.5,12)});
   }
-  defs.push({x:0,z:-58,r:18,h:26},{x:-48,z:36,r:15,h:21});
+  defs.push({x:0,z:-38,r:11,h:15},{x:-30,z:20,r:9,h:12});
   for(const d of defs){
     const m = new THREE.Mesh(new THREE.ConeGeometry(d.r,d.h,7), mtnMat);
     m.position.set(d.x, d.h/2-2.5, d.z);
@@ -763,7 +757,7 @@ const waterMat = new THREE.ShaderMaterial({
       col = mix(col, uFog, fres*0.4);
       col = mix(col, col*0.35+vec3(0.02,0.04,0.1), uNight);
       float d = distance(uCam, vWorld);
-      float f = smoothstep(22.0, 62.0, d);
+      float f = smoothstep(14.0, 42.0, d);
       col = mix(col, uFog, f);
       gl_FragColor = vec4(col, 0.84);
     }`,
@@ -802,8 +796,7 @@ function groundInfo(x,z){
       return { h:WATER_Y+0.12, kind:'pad', pad:p };
   }
   const h = terrainHeight(x,z);
-  const dl = dist2d(x,z,LAKE.x,LAKE.z);
-  if(dl < LAKE.r-0.6 && h < WATER_Y-0.22 && dist2d(x,z,ISLAND.x,ISLAND.z) > ISLAND.r)
+  if(h < WATER_Y-0.18 && dist2d(x,z,ISLAND.x,ISLAND.z) > ISLAND.r)
     return { h:WATER_Y, kind:'water' };
   return { h, kind:'ground' };
 }
@@ -822,8 +815,7 @@ const trees = [];
   const leafMatA = new THREE.MeshStandardMaterial({ color:0x4f9e4c, roughness:1, flatShading:true });
   const leafMatB = new THREE.MeshStandardMaterial({ color:0x6cbf5a, roughness:1, flatShading:true });
   const spots = [
-    [5.5,3.3],[7.7,-1.1],[3.9,-5],[-3.3,-5.5],[-7.2,-3.3],[1.7,7.2],[6.6,6.6],[-1.1,8.8],[-12,-6.6],[11,-5],[-5.5,-8.8],[8.8,2.2],
-    [-14.3,1.1],[13.2,8.8],[-9.9,9.9],
+    [3,1.8],[4.2,-0.6],[2.1,-2.8],[-1.8,-3],[-4,-1.8],[0.9,4],[3.6,3.6],[-6.6,-3.6],[6,-2.8],[-3,-4.8],[4.8,1.2],[7.3,4.8],
   ];
   for(const [tx,tz] of spots){
     if(dist2d(tx,tz,LAKE.x,LAKE.z) < LAKE.r+2.5) continue;
@@ -853,13 +845,13 @@ const trees = [];
   const geo = new THREE.ConeGeometry(0.05, 0.42, 4);
   geo.translate(0,0.21,0);
   const mat = new THREE.MeshStandardMaterial({ color:0x69b84e, roughness:1 });
-  const N = 400;
+  const N = 240;
   const inst = new THREE.InstancedMesh(geo, mat, N);
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
   let placed = 0, guard = 0;
   while(placed < N && guard++ < 4000){
-    const x = rand(-24,24), z = rand(-24,24);
+    const x = rand(-13,13), z = rand(-13,13);
     if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
     if(terrainHeight(x,z) < WATER_Y) continue;
     dummy.position.set(x, terrainHeight(x,z), z);
@@ -883,14 +875,14 @@ const flowerHeads = [];
   const stemMat = new THREE.MeshStandardMaterial({ color:0x4e9e44, roughness:1 });
   const headGeo = new THREE.SphereGeometry(0.075,7,6);
   const headMat = new THREE.MeshStandardMaterial({ roughness:0.7 });
-  const N = 64;
+  const N = 40;
   const stems = new THREE.InstancedMesh(stemGeo, stemMat, N);
   const heads = new THREE.InstancedMesh(headGeo, headMat, N);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
   const palette = [0xff9db8,0xffd36e,0xb7a4ff,0xff8f6e,0xfff3ff,0x9fd8ff];
   let placed=0, guard=0;
   while(placed<N && guard++<4000){
-    const x = rand(-20,20), z = rand(-20,20);
+    const x = rand(-12,12), z = rand(-12,12);
     if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
     if(terrainHeight(x,z) < WATER_Y) continue;
     if(Math.hypot(x,z) < 4) continue; // 野餐区留空
@@ -915,7 +907,7 @@ const mushrooms = [];
   const capMat = new THREE.MeshStandardMaterial({ color:0xe8574f, roughness:0.6 });
   const dotMat = new THREE.MeshStandardMaterial({ color:0xfff5ee, roughness:0.6 });
   const stemMat = new THREE.MeshStandardMaterial({ color:0xf5e8d8, roughness:1 });
-  const defs = [[4.6,1.8],[7.8,3.8],[-6.5,-5.5]];
+  const defs = [[1.8,0.9],[4.4,2.2],[-2.2,-4]];
   for(const [mx,mz] of defs){
     const g = new THREE.Group();
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.42,8), stemMat);
@@ -947,8 +939,8 @@ function addRock(x,z,s){
   scene.add(r);
   return r;
 }
-addRock(3.8,-2.6,0.42); addRock(-3.4,-4.8,0.5); addRock(7.5,-4.2,0.4);
-const balloonAnchor = addRock(4.2,-0.6,0.38);
+addRock(2.3,-1.6,0.42); addRock(-2.1,-2.9,0.5); addRock(4.5,-2.5,0.4);
+const balloonAnchor = addRock(2.6,-0.3,0.36);
 
 /* ================================================================
    野餐营地
@@ -1166,7 +1158,7 @@ function makeFoodMesh(kind){
 }
 {
   const padMat = new THREE.MeshStandardMaterial({ color:0x3e9e4f, roughness:0.8, side:THREE.DoubleSide });
-  const defs = [[-6.4,4.2],[-5.6,5.4],[-7.4,6.2]];
+  const defs = [[-3.6,2.4],[-2.9,3.3],[-4.3,3.4]];
   for(const [px,pz] of defs){
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.045,14), padMat);
     pad.position.set(px, WATER_Y+0.06, pz);
@@ -1202,7 +1194,7 @@ function makeFoodMesh(kind){
   shadowify(g);
   scene.add(g);
   boat = { group:g, phase:rand(0,TAU), heading:0, bobPhase:rand(0,TAU), oar };
-  g.position.set(LAKE.x+5.2, WATER_Y, LAKE.z);
+  g.position.set(LAKE.x+3.2, WATER_Y, LAKE.z);
   regInteractive(g, 'boat', '小木筏');
 }
 /* --- 小岛宝箱 --- */
@@ -1283,12 +1275,12 @@ let kite = null;
   const tail2 = tail1.clone(); tail2.position.set(-0.08,-0.72,0); tail2.rotation.z = -0.5;
   const tail3 = tail1.clone(); tail3.position.set(0.09,-0.98,0); tail3.rotation.z = 0.4;
   g.add(diamond, sparV, sparH, tail1, tail2, tail3);
-  const stakeY = terrainHeight(8.6,4.6);
-  g.position.set(8.6, stakeY+0.95, 4.6);
+  const stakeY = terrainHeight(5.3,2.8);
+  g.position.set(5.3, stakeY+0.95, 2.8);
   g.rotation.z = 0.25;
   shadowify(g);
   scene.add(g);
-  kite = { group:g, stake:V3(8.6, stakeY+0.05, 4.6), state:'ground', t:0, trick:0, rest:g.position.clone() };
+  kite = { group:g, stake:V3(5.3, stakeY+0.05, 2.8), state:'ground', t:0, trick:0, rest:g.position.clone() };
   regInteractive(g, 'kite', '风筝');
   const lineGeo = new THREE.BufferGeometry().setFromPoints([kite.stake.clone(), g.position.clone()]);
   const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.5 }));
@@ -1301,7 +1293,7 @@ const dandelions = [];
 {
   const stemMat = new THREE.MeshStandardMaterial({ color:0x4e9e44, roughness:1 });
   const puffMat = new THREE.MeshStandardMaterial({ color:0xf7f7f2, roughness:1, flatShading:true });
-  const defs = [[3.5,6.5],[6.5,-3.5],[0.5,-6.5]];
+  const defs = [[2.1,3.9],[3.9,-2.1],[0.3,-4.2]];
   for(const [dx,dz] of defs){
     const g = new THREE.Group();
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.03,0.5,6), stemMat);
@@ -1335,8 +1327,8 @@ let trampoline = null;
     new THREE.MeshStandardMaterial({ color:0x4a90d9, roughness:0.7 }));
   mat.rotation.x = -Math.PI/2; mat.position.y = 0.55;
   g.add(ring, mat);
-  const gy = terrainHeight(0.5,-4.2);
-  g.position.set(0.5, gy, -4.2);
+  const gy = terrainHeight(0.3,-2.6);
+  g.position.set(0.3, gy, -2.6);
   shadowify(g);
   scene.add(g);
   trampoline = { group:g, mat, y:gy+0.55, dip:0 };
@@ -1370,7 +1362,7 @@ let swing = null;
   seat.position.set(0, -1.62, 0);
   arm.add(seat);
   g.add(arm);
-  g.position.set(-4.5, terrainHeight(-4.5,-2.5), -2.5);
+  g.position.set(-2.8, terrainHeight(-2.8,-1.6), -1.6);
   g.rotation.y = 0.7;
   shadowify(g);
   scene.add(g);
@@ -1389,7 +1381,7 @@ let ball = null;
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.32,18,14),
     new THREE.MeshStandardMaterial({ map:tex, roughness:0.5 }));
   m.castShadow = true;
-  m.position.set(2.4, 0.32, 3.6);
+  m.position.set(1.5, 0.32, 2.2);
   shadowify(m);
   scene.add(m);
   ball = { mesh:m, vel:V3(), r:0.32, playMode:false, kickCd:0 };
@@ -1565,7 +1557,7 @@ function spawnBaby(delay){
 const animals = [];
 
 /* --- 小兔子 --- */
-const rabbit = { group:new THREE.Group(), pos:V3(5,0,5.5), state:'idle', target:null, fed:false,
+const rabbit = { group:new THREE.Group(), pos:V3(3,0,3.3), state:'idle', target:null, fed:false,
   hopT:0, vy:0, grounded:true, heading:0, idleT:rand(2,5), friendT:0 };
 {
   const furMat = new THREE.MeshStandardMaterial({ color:0xf7f2ec, roughness:1 });
@@ -1649,8 +1641,8 @@ const birds = [];
     g.add(body, wL, wR, beak);
     shadowify(g);
     scene.add(g);
-    const b = { group:g, wL, wR, mode:'fly', center:V3(rand(-7,7),rand(4.5,6.5),rand(-7,7)),
-      angle:rand(0,TAU), rad:rand(3.5,7), angSpeed:rand(0.25,0.45)*(Math.random()<0.5?1:-1),
+    const b = { group:g, wL, wR, mode:'fly', center:V3(rand(-4,4),rand(3.5,5),rand(-4,4)),
+      angle:rand(0,TAU), rad:rand(2.5,5), angSpeed:rand(0.25,0.45)*(Math.random()<0.5?1:-1),
       flap:rand(0,TAU), landT:0, heading:0 };
     birds.push(b);
     animals.push(b);
@@ -1674,7 +1666,7 @@ const butterflies = [];
     body.rotation.x = Math.PI/2;
     g.add(wL, wR, body);
     scene.add(g);
-    const bf = { group:g, wL, wR, pos:V3(rand(-8,8),rand(0.8,2),rand(-8,8)),
+    const bf = { group:g, wL, wR, pos:V3(rand(-5,5),rand(0.8,2),rand(-5,5)),
       target:null, flap:rand(0,TAU), state:'fly', landT:0, onSlime:false, retarget:0 };
     butterflies.push(bf);
     animals.push(bf);
@@ -1736,7 +1728,7 @@ let snowman = null;
   armL.position.set(-0.36,1.15,0); armL.rotation.z = 1.1;
   armR.position.set(0.36,1.15,0); armR.rotation.z = -1.1;
   g.add(b1,b2,b3,nose,eye1,eye2,armL,armR);
-  g.position.set(3.4, 0, 2.6);
+  g.position.set(2.1, 0, 1.6);
   g.scale.setScalar(0.001);
   g.visible = false;
   shadowify(g);
@@ -1840,7 +1832,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
   const N = 420;
   const geo = new THREE.BufferGeometry();
   const arr = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr[i*3]=rand(-20,20); arr[i*3+1]=rand(0,16); arr[i*3+2]=rand(-20,20); }
+  for(let i=0;i<N;i++){ arr[i*3]=rand(-12,12); arr[i*3+1]=rand(0,10); arr[i*3+2]=rand(-12,12); }
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   rainPts = new THREE.Points(geo, new THREE.PointsMaterial({
     map:texRainStreak(), size:0.7, transparent:true, opacity:0, depthWrite:false,
@@ -1849,7 +1841,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
 
   const geo2 = new THREE.BufferGeometry();
   const arr2 = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr2[i*3]=rand(-20,20); arr2[i*3+1]=rand(0,14); arr2[i*3+2]=rand(-20,20); }
+  for(let i=0;i<N;i++){ arr2[i*3]=rand(-12,12); arr2[i*3+1]=rand(0,9); arr2[i*3+2]=rand(-12,12); }
   geo2.setAttribute('position', new THREE.BufferAttribute(arr2,3));
   snowPts = new THREE.Points(geo2, new THREE.PointsMaterial({
     map:texGlow('255,255,255'), size:0.22, transparent:true, opacity:0, depthWrite:false,
@@ -1861,7 +1853,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
   const arr3 = new Float32Array(FN*3);
   const seed3 = [];
   for(let i=0;i<FN;i++){
-    arr3[i*3]=rand(-18,18); arr3[i*3+1]=rand(0.4,2); arr3[i*3+2]=rand(-18,18);
+    arr3[i*3]=rand(-11,11); arr3[i*3+1]=rand(0.4,1.8); arr3[i*3+2]=rand(-11,11);
     seed3.push({ph:rand(0,TAU), sp:rand(0.3,0.9), cx:arr3[i*3], cz:arr3[i*3+2], cy:arr3[i*3+1]});
   }
   geo3.setAttribute('position', new THREE.BufferAttribute(arr3,3));
@@ -1923,39 +1915,6 @@ function addMood(v){
   ui.moodEmoji.textContent = moodEmoji();
   ui.moodEmoji.classList.remove('bounce'); void ui.moodEmoji.offsetWidth;
   ui.moodEmoji.classList.add('bounce');
-}
-function completeTask(id){
-  if(doneTasks.has(id)) return;
-  doneTasks.add(id);
-  S.stars++;
-  ui.starRow.textContent = `⭐ ${S.stars} / 5`;
-  const t = TASKS.find(t=>t.id===id);
-  toast(`任务完成：${t.name}！⭐`, true);
-  AU.fanfare();
-  if(S.stars>=5 && !S.celebrated){
-    S.celebrated = true;
-    setTimeout(celebrate, 1200);
-  }
-  updateTaskHint();
-}
-function updateTaskHint(){
-  const next = TASKS.find(t=>!doneTasks.has(t.id));
-  ui.taskHint.textContent = next ? next.hint : '🎉 郊游圆满！和史莱姆玩吧';
-}
-updateTaskHint();
-
-function celebrate(){
-  toast('🎉 五星郊游达成！史莱姆宝宝来啦！', true, 3600);
-  AU.fanfare();
-  spawnBaby(0.5); spawnBaby(2.2);
-  rainbow.on = true; rainbow.t = 0; rainbow.group.visible = true;
-  let n = 0;
-  const fw = setInterval(()=>{
-    const p = V3(rand(-16,16), rand(7,13), rand(-16,16));
-    spawnConfetti(p, 20);
-    AU.pop();
-    if(++n>10) clearInterval(fw);
-  }, 380);
 }
 
 /* ================================================================
@@ -2043,7 +2002,6 @@ renderer.domElement.addEventListener('pointerdown', e=>{
       if(drag.mode==='grab' && !drag.moved){
         slime.petting = true;
         AU.purrStart();
-        completeTask('pet');
       }
     }, 480);
   } else if(hit && hit.type!=='ground' && hit.type!=='water'){
@@ -2061,7 +2019,7 @@ window.addEventListener('pointermove', e=>{
     const pts = [...activePointers.values()];
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     if(pinchDist>0){
-      cam.radius = clamp(cam.radius * (pinchDist/d), 4, 20);
+      cam.radius = clamp(cam.radius * (pinchDist/d), 3.5, 14);
     }
     pinchDist = d;
     return;
@@ -2153,7 +2111,7 @@ window.addEventListener('pointerup', e=>{
 });
 
 renderer.domElement.addEventListener('wheel', e=>{
-  cam.radius = clamp(cam.radius*(1+e.deltaY*0.001), 4, 20);
+  cam.radius = clamp(cam.radius*(1+e.deltaY*0.001), 3.5, 14);
 }, { passive:true });
 
 function handleAction(hit){
@@ -2242,8 +2200,8 @@ function actionFood(obj){
   obj.userData.state = 'tossed';
   // 抛到史莱姆附近
   const a = rand(0,TAU), r = rand(1.6,2.8);
-  let tx = clamp(slime.pos.x + Math.cos(a)*r, -40, 40);
-  let tz = clamp(slime.pos.z + Math.sin(a)*r, -40, 40);
+  let tx = clamp(slime.pos.x + Math.cos(a)*r, -10, 10);
+  let tz = clamp(slime.pos.z + Math.sin(a)*r, -10, 10);
   const g = groundInfo(tx,tz);
   if(g.kind==='water'){ tx = slime.pos.x+1.5; tz = slime.pos.z+1.5; }
   obj.userData.tossFrom = obj.position.clone();
@@ -2305,11 +2263,7 @@ function actionRabbit(){
 }
 function actionDuck(obj){
   AU.quack();
-  const isMom = ducks.find(d=>d.group===obj)?.type==='duck';
-  if(!doneTasks.has('animal')){
-    toast('🍞 撒下面包屑，鸭子一家游过来啦！');
-    completeTask('animal');
-  } else toast('🦆 嘎嘎！');
+  toast('🍞 撒下面包屑，鸭子一家游过来啦！嘎嘎～');
   addMood(5);
   // 面包屑
   const p = obj.position.clone().add(V3(rand(-1,1),0.1,rand(-1,1)));
@@ -2675,7 +2629,6 @@ function updateSlime(dt){
       slime.eatFood = null;
       slime.state = 'idle';
       addMood(10);
-      completeTask('feed');
       if(f.userData.kind==='chili'){
         slime.chiliT = 4; slime.haste = 8;
         AU.noise(0.5, 3000, 0.2, 'highpass');
@@ -2705,7 +2658,7 @@ function updateSlime(dt){
         AU.splash(1.2);
         spawnSplashDrops(slime.pos.clone(), 12);
         spawnRipple(slime.pos.x, slime.pos.z, 1.4);
-        if(slime.state==='free'||slime.state==='idle'){ slime.state='swim'; completeTask('swim'); addMood(6); }
+        if(slime.state==='free'||slime.state==='idle'){ slime.state='swim'; addMood(6); }
       }
     }
     if(Math.random()<dt*3) spawnRipple(slime.pos.x+rand(-0.2,0.2), slime.pos.z+rand(-0.2,0.2), 0.7);
@@ -2759,7 +2712,6 @@ function updateSlime(dt){
       slime.swimming = false;
       slime.riding = true;
       slime.state = 'ride';
-      completeTask('boat');
       addMood(8);
       toast('⛵ 登船！环湖兜风咯～ 点小船或按空格下船', true, 2600);
     } else if(g2.kind==='mush' && impact>1){
@@ -2792,7 +2744,6 @@ function updateSlime(dt){
         if(groundInfo(slime.pos.x, slime.pos.z).kind==='water'){
           // 一头扎进水里
           slime.state = 'swim';
-          completeTask('swim');
           addMood(6);
         } else if(act==='eat' && slime.autoFood){ slime.state='eat'; slime.eatT=1.3; slime.eatFood=slime.autoFood; }
         else if(act==='board'){
@@ -2808,7 +2759,6 @@ function updateSlime(dt){
           rabbit.friendT = 9999;
           rabbit.target = { x:slime.pos.x+rand(-1,1), z:slime.pos.z+rand(-1,1) };
           rabbit.state = 'hop';
-          completeTask('animal');
           addMood(8);
           toast('🐰 小兔子吃到了胡萝卜，成为朋友啦！', true);
           spawnHearts(rabbit.pos.clone().add(V3(0,0.8,0)), 3);
@@ -2844,7 +2794,6 @@ function updateSlime(dt){
       slime.swimming = false;
       slime.riding = true;
       slime.state = 'ride';
-      completeTask('boat');
       addMood(8);
       toast('⛵ 登船！环湖兜风咯～ 点小船或按空格下船', true, 2600);
     } else if(slime.target){
@@ -2871,7 +2820,7 @@ function updateSlime(dt){
       slime.idleT -= dt;
       if(slime.idleT<=0){
         slime.idleT = rand(5,10);
-        if(Math.random()<0.65){
+    if(Math.random()<0.65){
           const a = rand(0,TAU), r = rand(1.5,4);
           let tx = slime.pos.x+Math.cos(a)*r, tz = slime.pos.z+Math.sin(a)*r;
           if(groundInfo(tx,tz).kind==='ground'){ slime.target={x:tx,z:tz}; slime.state='hop'; }
@@ -2985,7 +2934,7 @@ function updateAnimals(dt){
     const ds = dist2d(r.pos.x,r.pos.z,slime.pos.x,slime.pos.z);
     if(!r.fed && ds<2.2 && r.grounded && r.state==='idle'){
       const a = Math.atan2(r.pos.z-slime.pos.z, r.pos.x-slime.pos.x);
-      r.target = { x:clamp(r.pos.x+Math.cos(a)*3.5,-40,40), z:clamp(r.pos.z+Math.sin(a)*3.5,-40,40) };
+      r.target = { x:clamp(r.pos.x+Math.cos(a)*3.5,-10,10), z:clamp(r.pos.z+Math.sin(a)*3.5,-10,10) };
       r.state = 'hop';
     }
     if(r.fed){
@@ -3013,7 +2962,7 @@ function updateAnimals(dt){
       if(r.idleT<=0 && r.grounded){
         r.idleT = rand(3,7);
         const a = rand(0,TAU), rr = rand(1,3);
-        const tx = clamp(r.pos.x+Math.cos(a)*rr,-38,38), tz = clamp(r.pos.z+Math.sin(a)*rr,-38,38);
+        const tx = clamp(r.pos.x+Math.cos(a)*rr,-10,10), tz = clamp(r.pos.z+Math.sin(a)*rr,-10,10);
         if(groundInfo(tx,tz).kind==='ground'){ r.target={x:tx,z:tz}; r.state='hop'; }
       }
     }
@@ -3101,7 +3050,7 @@ function updateAnimals(dt){
         else {
           const fh = flowerHeads[rint(0,flowerHeads.length-1)];
           if(fh && Math.random()<0.6) bf.target = V3(fh[0]+rand(-0.5,0.5), fh[1]+rand(0.4,1), fh[2]+rand(-0.5,0.5));
-          else bf.target = V3(rand(-9,9), rand(0.8,2.2), rand(-9,9));
+          else bf.target = V3(rand(-6,6), rand(0.8,2.2), rand(-6,6));
         }
       }
       const d = bf.target.clone().sub(bf.pos);
@@ -3200,8 +3149,8 @@ function updateFacilities(dt){
       b.phase += dt*0.35;
     }
     const theta = Math.sin(b.phase)*1.15;
-    const bx = LAKE.x + Math.cos(theta)*5.2;
-    const bz = LAKE.z + Math.sin(theta)*5.2;
+    const bx = LAKE.x + Math.cos(theta)*3.2;
+    const bz = LAKE.z + Math.sin(theta)*3.2;
     const dx = bx - b.group.position.x, dz = bz - b.group.position.z;
     if(Math.hypot(dx,dz) > 0.0005) b.heading = Math.atan2(dx,dz);
     b.bobPhase += dt;
@@ -3468,7 +3417,7 @@ function updateEnvironment(dt){
   // 云
   for(const c of clouds){
     c.position.x += c.userData.speed*dt;
-    if(c.position.x>55) c.position.x = -55;
+    if(c.position.x>30) c.position.x = -30;
   }
 
   // 雨/雪
@@ -3480,7 +3429,7 @@ function updateEnvironment(dt){
     const pa = rainPts.geometry.attributes.position;
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*24;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(12,17); pa.array[i*3]=rand(-20,20); pa.array[i*3+2]=rand(-20,20); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(8,11); pa.array[i*3]=rand(-12,12); pa.array[i*3+2]=rand(-12,12); }
     }
     pa.needsUpdate = true;
     if(AU.ctx && Math.random()<dt*8) spawnRipple(rand(LAKE.x-6,LAKE.x+6), rand(LAKE.z-6,LAKE.z+6), 0.5);
@@ -3490,7 +3439,7 @@ function updateEnvironment(dt){
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*1.6;
       pa.array[i*3] += Math.sin(S.time+i)*dt*0.4;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(10,15); pa.array[i*3]=rand(-20,20); pa.array[i*3+2]=rand(-20,20); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(7,10); pa.array[i*3]=rand(-12,12); pa.array[i*3+2]=rand(-12,12); }
     }
     pa.needsUpdate = true;
     terrainMat.color.lerp(new THREE.Color(1.5,1.55,1.7), dt*0.5);
@@ -3546,7 +3495,7 @@ function updateParticles(dt){
 /* --- 相机 --- */
 function updateCamera(dt){
   cam.intro += dt;
-  const targetR = cam.intro<2.2 ? lerp(18,9.5,smooth(0,1,cam.intro/2.2)) : cam.radius;
+  const targetR = cam.intro<2.2 ? lerp(13,7,smooth(0,1,cam.intro/2.2)) : cam.radius;
   const t = slime.riding ? boat.group.position : slime.pos;
   cam.target.lerp(V3(t.x, t.y+0.9, t.z), Math.min(1, dt*3));
   const r = lerp(cam.radius, targetR, cam.intro<2.2?1:0);
@@ -3632,7 +3581,6 @@ window.addEventListener('resize', ()=>{
 });
 
 /* --- 启动 --- */
-updateTaskHint();
 ui.moodEmoji.textContent = moodEmoji();
 tick();
 setTimeout(()=>{
