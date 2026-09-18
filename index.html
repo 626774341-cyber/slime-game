@@ -111,7 +111,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.4 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.5 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -766,12 +766,14 @@ mouthO.rotation.x = -0.45;
 mouthO.visible = false;
 slimeGroup.add(mouthO);
 
+const cheeks = [];
 [-1, 1].forEach(sign => {
   const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.07, 16), matCheek);
   const p = new THREE.Vector3(sign * 0.47, 0.42, 0.63).normalize();
   cheek.position.copy(p.multiplyScalar(0.985));
   cheek.lookAt(cheek.position.clone().multiplyScalar(2));
   slimeGroup.add(cheek);
+  cheeks.push(cheek);
 });
 
 /* ================= 帽子系统 ================= */
@@ -2393,45 +2395,45 @@ const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg
 const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 const EMOJI_BUILDERS = {
-  '🐱': () => [                                  // 猫：圆头 + 两只金字塔耳
-    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
-    part(mkCone(0.26, 0.5, 4), 1, 1, 0.55, -0.46, 0.76, 0, 0, 0.32),
-    part(mkCone(0.26, 0.5, 4), 1, 1, 0.55, 0.46, 0.76, 0, 0, -0.32),
+  '🐱': () => [                                  // 猫：圆头 + 圆润短耳（不挡眼睛）
+    part(mkBall(0.85), 1, 0.95, 0.95, 0, 0, 0),
+    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, -0.52, 0.8, 0, 0, 0.3),
+    part(mkCone(0.3, 0.46, 10), 1, 1, 0.7, 0.52, 0.8, 0, 0, -0.3),
   ],
-  '🐸': () => [                                  // 青蛙：扁头 + 头顶两只凸眼睛
-    part(mkBall(0.85), 1, 0.85, 0.95, 0, -0.1, 0),
-    part(mkBall(0.21), 1, 1, 1, -0.48, 0.58, 0.14),
-    part(mkBall(0.21), 1, 1, 1, 0.48, 0.58, 0.14),
+  '🐸': () => [                                  // 青蛙：扁宽头 + 眼睛落在两只凸眼球上
+    part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
+    part(mkBall(0.24), 1, 1, 1, -0.34, 0.63, 0.3),
+    part(mkBall(0.24), 1, 1, 1, 0.34, 0.63, 0.3),
   ],
-  '🐷': () => [                                  // 猪：头 + 前凸的猪鼻子 + 耳朵
-    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
-    part(mkCyl(0.27, 0.27, 0.3), 1, 1, 1, 0, 0.1, 0.78, Math.PI / 2),
-    part(mkCone(0.2, 0.38, 4), 1, 1, 0.5, -0.5, 0.7, 0, 0, 0.45),
-    part(mkCone(0.2, 0.38, 4), 1, 1, 0.5, 0.5, 0.7, 0, 0, -0.45),
+  '🐷': () => [                                  // 猪：头 + 低位前凸猪鼻子（眼睛在鼻子上方）+ 圆耳
+    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
+    part(mkCyl(0.3, 0.32, 0.34, 18), 1, 1, 1, 0, 0.16, 0.74, Math.PI / 2),
+    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, -0.54, 0.72, 0, 0, 0.42),
+    part(mkCone(0.22, 0.4, 10), 1, 1, 0.6, 0.54, 0.72, 0, 0, -0.42),
   ],
-  '🐻': () => [                                  // 熊：头 + 圆耳朵 + 凸出的吻部
-    part(mkBall(0.82), 1, 0.95, 0.95, 0, 0, 0),
-    part(mkBall(0.24), 1, 1, 1, -0.56, 0.64, -0.04),
-    part(mkBall(0.24), 1, 1, 1, 0.56, 0.64, -0.04),
-    part(mkBall(0.3), 1, 0.75, 0.7, 0, 0.02, 0.62),
+  '🐻': () => [                                  // 熊：头 + 圆耳朵 + 嘴巴正下方的圆吻部
+    part(mkBall(0.85), 1, 0.97, 0.95, 0, 0, 0),
+    part(mkBall(0.26), 1, 1, 1, -0.6, 0.64, -0.06),
+    part(mkBall(0.26), 1, 1, 1, 0.6, 0.64, -0.06),
+    part(mkBall(0.32), 1, 0.72, 0.72, 0, 0.16, 0.6),
   ],
-  '🐰': () => [                                  // 兔：头 + 两只长耳朵
-    part(mkBall(0.76), 1, 0.92, 0.95, 0, -0.22, 0),
-    part(new THREE.CapsuleGeometry(0.15, 0.55, 4, 12), 1, 1, 1, -0.27, 0.62, -0.02, 0, 0, 0.14),
-    part(new THREE.CapsuleGeometry(0.15, 0.55, 4, 12), 1, 1, 1, 0.27, 0.62, -0.02, 0, 0, -0.14),
+  '🐰': () => [                                  // 兔：饱满圆头 + 两只厚长耳
+    part(mkBall(0.84), 1, 1, 0.98, 0, 0, 0),
+    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, -0.28, 0.72, -0.05, 0, 0, 0.12),
+    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, 0.28, 0.72, -0.05, 0, 0, -0.12),
   ],
-  '🍄': () => [                                  // 蘑菇：半球伞盖 + 小柱子菇柄
-    part(mkBall(0.88), 1, 0.62, 1, 0, 0.3, 0),
-    part(mkCyl(0.3, 0.34, 0.62), 1, 1, 1, 0, -0.4, 0),
+  '🍄': () => [                                  // 蘑菇：厚柱柄（脸在柄上）+ 顶部宽伞盖
+    part(mkCyl(0.5, 0.56, 1.3, 18), 1, 1, 1, 0, -0.02, 0),
+    part(mkBall(0.95), 1, 0.34, 1, 0, 0.88, 0),
   ],
-  '🍓': () => [                                  // 草莓：果子 + 叶蒂 + 小梗
-    part(mkBall(0.8), 0.95, 1.08, 0.95, 0, -0.18, 0),
-    part(mkCone(0.5, 0.22, 6), 1, 1, 1, 0, 0.62, 0),
-    part(mkCyl(0.05, 0.05, 0.24, 8), 1, 1, 1, 0, 0.8, 0),
+  '🍓': () => [                                  // 草莓：饱满果子 + 叶蒂 + 小梗
+    part(mkBall(0.84), 0.98, 1.06, 0.98, 0, -0.05, 0),
+    part(mkCone(0.52, 0.26, 8), 1, 1, 1, 0, 0.68, 0),
+    part(mkCyl(0.06, 0.06, 0.26, 10), 1, 1, 1, 0, 0.86, 0),
   ],
-  '🍙': () => [                                  // 饭团：米团身子 + 底前一片海苔
-    part(mkBall(0.85), 1.08, 0.9, 0.96, 0, -0.05, 0),
-    part(mkBox(0.56, 0.5, 0.3), 1, 1, 1, 0, -0.48, 0.6),
+  '🍙': () => [                                  // 饭团：饱满米团 + 底前一片海苔
+    part(mkBall(0.88), 1.06, 0.92, 1, 0, -0.02, 0),
+    part(mkBox(0.6, 0.52, 0.34), 1, 1, 1, 0, -0.5, 0.58),
   ],
 };
 function buildEmojiGeo(e) {
@@ -2453,6 +2455,55 @@ function buildEmojiGeo(e) {
   g.computeVertexNormals();
   return g;
 }
+// —— 五官贴面：换形状后把眼睛 / 嘴 / 腮红重新贴到新形状的表面 ——
+// 在五官原本的 (x, y) 处向 -z 打射线找表面落点；那一档找不到就往下再找
+// （比如甜甜圈的眼睛会自动落到环面顶部）；实在找不到的腮红先藏起来。
+const faceRay = new THREE.Raycaster();
+function faceHit(x, y) {
+  for (let yy = y; yy > y - 0.5; yy -= 0.1) {
+    faceRay.set(new THREE.Vector3(x, yy, 5), new THREE.Vector3(0, 0, -1));
+    const hits = faceRay.intersectObject(slimeMesh, false);
+    if (hits.length) return { p: hits[0].point, n: hits[0].face.normal.clone().normalize() };
+  }
+  return null;
+}
+function fitFaceToShape() {
+  // 射线在几何本地空间做：暂时清零史莱姆的位移 / 旋转 / 挤压，完事再还原
+  const gp = slimeGroup.position.clone(), gr = slimeGroup.rotation.clone(), gs = slimeGroup.scale.clone();
+  slimeGroup.position.set(0, 0, 0);
+  slimeGroup.rotation.set(0, 0, 0);
+  slimeGroup.scale.set(1, 1, 1);
+  slimeGroup.updateMatrixWorld(true);
+  [eyeL, eyeR].forEach((eye, i) => {
+    const hit = faceHit(i === 0 ? -0.30 : 0.30, 0.60);
+    if (hit) {
+      eye.group.position.copy(hit.p).addScaledVector(hit.n, 0.02);
+      eye.n.copy(hit.n);
+      eye.right.set(0, 1, 0).cross(eye.n).normalize();
+      eye.up.copy(eye.n).cross(eye.right).normalize();
+    }
+  });
+  arcL.position.copy(eyeL.group.position);
+  arcR.position.copy(eyeR.group.position);
+  const mHit = faceHit(0, 0.40);
+  if (mHit) {
+    smile.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
+    mouthO.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
+    mouthO.position.y -= 0.02;
+  }
+  cheeks.forEach((cheek, i) => {
+    const hit = faceHit(i === 0 ? -0.47 : 0.47, 0.42);
+    cheek.visible = !!hit;
+    if (hit) {
+      cheek.position.copy(hit.p).addScaledVector(hit.n, 0.012);
+      cheek.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hit.n);
+    }
+  });
+  slimeGroup.position.copy(gp);
+  slimeGroup.rotation.copy(gr);
+  slimeGroup.scale.copy(gs);
+  slimeGroup.updateMatrixWorld(true);
+}
 function applyEmojiShape(e) {
   ensureAudio();
   const g = buildEmojiGeo(e);
@@ -2461,6 +2512,7 @@ function applyEmojiShape(e) {
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
+  fitFaceToShape();
   spawnSparkles(8);
   say('变——！');
   toast(e + ' 变身！点 🧪 可换其他形状');
@@ -2474,6 +2526,7 @@ function applyShape(i) {
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
+  fitFaceToShape();
   spawnSparkles(6);
   say('变——！');
   toast('🧪 变成了' + SHAPE_NAMES[i]);
