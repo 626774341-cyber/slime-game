@@ -52,17 +52,14 @@
             cursor: pointer; box-shadow: 0 2px 6px rgba(60,90,140,.25); }
   .swatch:hover { transform: scale(1.15); }
   .swatch.rainbow { background: conic-gradient(#ff6b6b,#ffb56b,#ffe45e,#6bde7c,#5ec8ff,#b78aff,#ff6bd8,#ff6b6b); }
-  /* 输入变身面板 */
-  #textPanel { position: fixed; right: 72px; bottom: 170px; padding: 10px; display: none;
-               gap: 8px; z-index: 7; }
-  #textPanel.open { display: flex; }
-  #textInput { width: 120px; font-size: 15px; padding: 6px 9px; border-radius: 10px;
-               border: 2px solid rgba(120,160,200,.4); outline: none; background: #fff;
-               color: #2c4a66; font-family: inherit; }
-  #textInput:focus { border-color: #54c8ff; }
-  #textGo { border: none; border-radius: 10px; padding: 7px 13px; font-size: 14px; cursor: pointer;
-            background: rgba(126,200,250,.95); color: #16324a; font-weight: 600; }
-  #textGo:active { transform: scale(.94); }
+  /* Emoji 变身面板 */
+  #emojiPanel { position: fixed; right: 72px; bottom: 170px; padding: 10px; display: none;
+                flex-wrap: wrap; gap: 6px; z-index: 7; max-width: 306px; }
+  #emojiPanel.open { display: flex; }
+  .empick { width: 42px; height: 42px; font-size: 26px; border: none; border-radius: 10px;
+            cursor: pointer; background: rgba(126,200,250,.16); transition: background .15s; }
+  .empick:hover { background: rgba(126,200,250,.5); }
+  .empick:active { transform: scale(.88); }
   /* 心情条 */
   #moodCard { bottom: 16px; left: 18px; padding: 10px 14px; display: flex; align-items: center;
               gap: 8px; animation: riseUp .8s .45s ease both; }
@@ -110,7 +107,7 @@
 <div id="title" class="card">
   <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
   <p>Three.js 互动加强版 · 人机交互小组作业</p>
-  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.1 · 点看更新日志</a></p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.2 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
 <div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
@@ -146,15 +143,25 @@
   <div class="swatch rainbow" data-i="6" title="彩虹模式"></div>
 </div>
 
-<div id="textPanel" class="card">
-  <input id="textInput" maxlength="2" placeholder="字 / emoji" />
-  <button id="textGo">变身！</button>
+<div id="emojiPanel" class="card">
+  <button class="empick" data-e="🐱">🐱</button>
+  <button class="empick" data-e="🐶">🐶</button>
+  <button class="empick" data-e="🐸">🐸</button>
+  <button class="empick" data-e="🌟">🌟</button>
+  <button class="empick" data-e="⭐">⭐</button>
+  <button class="empick" data-e="❤️">❤️</button>
+  <button class="empick" data-e="🍎">🍎</button>
+  <button class="empick" data-e="🍩">🍩</button>
+  <button class="empick" data-e="🌸">🌸</button>
+  <button class="empick" data-e="🌈">🌈</button>
+  <button class="empick" data-e="🔥">🔥</button>
+  <button class="empick" data-e="🌙">🌙</button>
 </div>
 
 <div id="toolbar">
   <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
   <button class="card tool" id="shapeBtn" title="变形药水：换个形状">🧪</button>
-  <button class="card tool" id="textShapeBtn" title="输入变身：变成你写的字 / emoji">✍️</button>
+  <button class="card tool" id="textShapeBtn" title="Emoji 变身：变成选中的 emoji 果冻">🎭</button>
   <button class="card tool" id="plantBtn" title="种花模式：点击地面种花">🌱</button>
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
@@ -2365,61 +2372,188 @@ function getShapeGeo(i) {
   shapeCache[i] = g;
   return g;
 }
-// —— 输入变身：把文字 / emoji 变成像素果冻（v2.1 新增） ——
+// —— Emoji 变身：把选中的 emoji 变成圆滑的果冻剪影（v2.2） ——
 let customShapeName = null;
 let customShapeGeo = null;
-function buildTextGeo(text) {
-  const FONT = '100px "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
-  const cv = document.createElement('canvas');
-  let ctx = cv.getContext('2d');
-  ctx.font = FONT;
-  cv.width = Math.max(Math.ceil(ctx.measureText(text).width) + 24, 64);
-  cv.height = 132;
-  ctx = cv.getContext('2d');          // 设置宽高后上下文重置，重新获取
-  ctx.font = FONT;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, cv.width / 2, cv.height / 2 + 4);
-  const img = ctx.getImageData(0, 0, cv.width, cv.height).data;
-  // 采样成小格子 → 一格格小方块拼成像素剪影（各自独立，天然不会被果冻抖动撕裂）
-  const cellPx = 6;
-  const cols = Math.floor(cv.width / cellPx), rows = Math.floor(cv.height / cellPx);
-  const cells = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const px = c * cellPx + cellPx / 2, py = r * cellPx + cellPx / 2;
-      if (img[(py * cv.width + px) * 4 + 3] > 120) cells.push([c, r]);
+
+function pointLineDist(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+function simplifyPolyline(pts, eps) {
+  if (pts.length < 3) return pts;
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    let dmax = 0, idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = pointLineDist(pts[i], pts[a], pts[b]);
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (dmax > eps) { keep[idx] = true; stack.push([a, idx], [idx, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+function chaikinSmooth(pts, iters) {
+  for (let k = 0; k < iters; k++) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 },
+               { x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    pts = out;
+  }
+  return pts;
+}
+function signedArea(pts) {
+  let a = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    a += pts[j].x * pts[i].y - pts[i].x * pts[j].y;
+  }
+  return a / 2;
+}
+function pointInPoly(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    if ((poly[i].y > p.y) !== (poly[j].y > p.y) &&
+        p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x) inside = !inside;
+  }
+  return inside;
+}
+function dilateMask(src, W, H) {
+  const out = new Uint8Array(src);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (!src[y * W + x] && (src[y * W + x - 1] || src[y * W + x + 1] || src[(y - 1) * W + x] || src[(y + 1) * W + x])) out[y * W + x] = 1;
     }
   }
-  if (cells.length < 3) return null;
-  const wpc = Math.min(1.9 / cols, 1.7 / rows);       // 世界尺寸：宽 ≤ 1.9、高 ≤ 1.7
-  const box = new THREE.BoxGeometry(wpc * 0.94, wpc * 0.94, 1.15);
-  const parts = cells.map(([c, r]) => {
-    const b = box.clone();
-    b.translate((c - cols / 2 + 0.5) * wpc, (rows - 1 - r) * wpc + wpc / 2 - 0.6725, 0);
-    return b;
+  return out;
+}
+// 二值图 marching squares：把 emoji 剪影的轮廓线全部提取成闭合环（像素坐标）
+function traceContours(solid, W, H) {
+  // 每个格子 4 角的占位组合 → 边界线段（边编号 0=上 1=右 2=下 3=左）
+  const T = { 1: [[3, 2]], 2: [[1, 2]], 3: [[3, 1]], 4: [[0, 1]], 5: [[0, 1], [2, 3]],
+              6: [[0, 2]], 7: [[0, 3]], 8: [[0, 3]], 9: [[0, 2]], 10: [[0, 3], [1, 2]],
+              11: [[0, 1]], 12: [[3, 1]], 13: [[1, 2]], 14: [[3, 2]] };
+  const mid = (x, y, e) => e === 0 ? { x: x + .5, y } : e === 1 ? { x: x + 1, y: y + .5 } : e === 2 ? { x: x + .5, y: y + 1 } : { x, y: y + .5 };
+  const segs = [];
+  for (let y = 0; y < H - 1; y++) {
+    for (let x = 0; x < W - 1; x++) {
+      const idx = (solid[y * W + x] ? 8 : 0) | (solid[y * W + x + 1] ? 4 : 0) |
+                  (solid[(y + 1) * W + x + 1] ? 2 : 0) | (solid[(y + 1) * W + x] ? 1 : 0);
+      for (const [ea, eb] of (T[idx] || [])) segs.push([mid(x, y, ea), mid(x, y, eb)]);
+    }
+  }
+  // 把零散线段串回闭合环
+  const key = p => p.x + ',' + p.y;
+  const at = new Map();
+  segs.forEach(([a, b], i) => {
+    for (const p of [a, b]) { const k = key(p); if (!at.has(k)) at.set(k, []); at.get(k).push(i); }
   });
-  const g = mergeGeometries(parts, false);
-  box.dispose();
+  const used = new Array(segs.length).fill(false);
+  const loops = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    const loop = [segs[i][0], segs[i][1]];
+    for (;;) {
+      const k = key(loop[loop.length - 1]);
+      const nxt = at.get(k).find(j => !used[j]);
+      if (nxt === undefined) break;
+      used[nxt] = true;
+      const [p, q] = segs[nxt];
+      loop.push(key(p) === k ? q : p);
+    }
+    loop.pop();
+    if (loop.length >= 3) loops.push(loop);
+  }
+  return loops;
+}
+function buildEmojiGeo(emoji) {
+  const N = 120;
+  const cv = document.createElement('canvas');
+  cv.width = N; cv.height = N;
+  let ctx = cv.getContext('2d');
+  ctx.font = '96px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, N / 2, N / 2 + 4);
+  const img = ctx.getImageData(0, 0, N, N).data;
+  let solid = new Uint8Array(N * N);
+  let count = 0;
+  for (let i = 0; i < N * N; i++) {
+    if (img[i * 4 + 3] > 100) { solid[i] = 1; count++; }
+  }
+  if (count < 80) return null;          // 没画出来（环境不支持彩色 emoji 等）
+  solid = dilateMask(solid, N, N);      // 加粗一圈：细笔画也能挤出圆润的边
+  // 轮廓 → 简化 → 平滑 → 再简化：得到圆润曲线
+  const loops = traceContours(solid, N, N)
+    .map(lp => simplifyPolyline(lp.concat([lp[0]]), 1.3).slice(0, -1))
+    .filter(lp => lp.length >= 3)
+    .map(lp => chaikinSmooth(lp, 2))
+    .map(lp => simplifyPolyline(lp.concat([lp[0]]), 0.35).slice(0, -1))
+    .filter(lp => lp.length >= 3);
+  if (!loops.length) return null;
+  // 包围盒 → 映射到世界坐标（宽 ≤ 1.9 / 高 ≤ 1.7，y 翻转向上）
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  for (const lp of loops) for (const p of lp) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const s = Math.min(1.9 / (maxX - minX), 1.7 / (maxY - minY), 2.2 / N);
+  const wloops = loops.map(lp => lp.map(p => new THREE.Vector2(
+    (p.x - (minX + maxX) / 2) * s, ((minY + maxY) / 2 - p.y) * s)));
+  // 面积最大的环是外形，被它包含的环是洞（如甜甜圈emoji的中空），其余是独立部件
+  wloops.sort((a, b) => Math.abs(signedArea(b)) - Math.abs(signedArea(a)));
+  const shapes = [];
+  for (const wl of wloops) {
+    const host = shapes.find(o => pointInPoly(wl[0], o.pts));
+    if (host) host.holes.push(wl);
+    else shapes.push({ pts: wl, holes: [] });
+  }
+  const geos = shapes.map(o => {
+    const shape = new THREE.Shape(o.pts);
+    for (const h of o.holes) shape.holes.push(new THREE.Path(h));
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.68, bevelEnabled: true,
+      bevelThickness: 0.2, bevelSize: 0.12, bevelSegments: 3   // 倒角 = 圆滑的果冻边
+    });
+  });
+  if (!geos.length) return null;
+  let g = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+  g.center();
+  g.computeBoundingBox();
+  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);   // 底部贴地，与史莱姆一致
+  // 焊接顶点 + 重算法线：果冻抖动时是一个完整表面，不会撕裂
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g = mergeVertices(g, 1e-4);
+  g.computeVertexNormals();
   return g;
 }
-function applyTextShape() {
+function applyEmojiShape(e) {
   ensureAudio();
-  const raw = document.getElementById('textInput').value.trim().slice(0, 2);
-  if (!raw) { toast('先输入一个字或 emoji 呀～'); return; }
-  const g = buildTextGeo(raw);
-  if (!g) { toast('这个我变不出来，换一个试试？'); return; }
+  const g = buildEmojiGeo(e);
+  if (!g) { toast('这个变不出来，换一个试试？'); return; }
   customShapeGeo = g;
-  customShapeName = raw;
+  customShapeName = e;
   slimeShapeIdx = 4;
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   spawnSparkles(8);
-  say('变——' + raw + '！');
-  toast('✨ 变成了「' + raw + '」！点 🧪 可轮流切换形状');
+  say('变——！');
+  toast(e + ' 变身！点 🧪 可轮流切换形状');
   blip(240, 980, 0.22, 0.13);
-  document.getElementById('textPanel').classList.remove('open');
+  document.getElementById('emojiPanel').classList.remove('open');
 }
 function cycleShape() {
   ensureAudio();
@@ -2623,16 +2757,11 @@ document.getElementById('starBtn').addEventListener('click', toggleStarGame);
 document.getElementById('shapeBtn').addEventListener('click', cycleShape);
 document.getElementById('textShapeBtn').addEventListener('click', () => {
   ensureAudio();
-  const panel = document.getElementById('textPanel');
-  panel.classList.toggle('open');
-  if (panel.classList.contains('open')) document.getElementById('textInput').focus();
+  document.getElementById('emojiPanel').classList.toggle('open');
   blip(600, 900, 0.08, 0.08);
 });
-document.getElementById('textGo').addEventListener('click', applyTextShape);
-// 输入框里的按键不要漏到全局快捷键（空格=超级跳 / B=跳舞）
-document.getElementById('textInput').addEventListener('keydown', (e) => {
-  e.stopPropagation();
-  if (e.key === 'Enter') applyTextShape();
+document.querySelectorAll('#emojiPanel .empick').forEach(btn => {
+  btn.addEventListener('click', () => applyEmojiShape(btn.dataset.e));
 });
 document.getElementById('babyBtn').addEventListener('click', toggleBaby);
 document.getElementById('hatBtn').addEventListener('click', cycleHat);
