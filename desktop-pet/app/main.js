@@ -24,16 +24,19 @@ function validBounds(b) {
 // ---------- 托盘图标 ----------
 function makeTrayIcon() {
   const s = 18, data = Buffer.alloc(s * s * 4);
-  const c = (s - 1) / 2, r = s / 2 - 0.5;
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const i = (y * s + x) * 4;
-      const d = Math.hypot(x - c, y - c);
+  const put = (cx, cy, r) => {
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const d = Math.hypot(x - cx, y - cy);
       let a = 0;
       if (d <= r - 1) a = 255; else if (d <= r) a = Math.round(255 * (r - d));
-      data[i] = 0xff; data[i + 1] = 0xc8; data[i + 2] = 0x54; data[i + 3] = a; // BGRA
+      if (a > 0) {
+        const i = (y * s + x) * 4;
+        data[i] = 0xff; data[i + 1] = 0xc8; data[i + 2] = 0x54;
+        data[i + 3] = Math.max(data[i + 3], a);
+      }
     }
-  }
+  };
+  put(9, 12, 4.2); put(4.5, 6.5, 2.2); put(9, 4.8, 2.2); put(13.5, 6.5, 2.2);  // 掌垫 + 三趾
   return nativeImage.createFromBitmap(data, { width: s, height: s });
 }
 
@@ -107,6 +110,7 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
+ipcMain.on('pet:openname', () => openNameWindow());
 ipcMain.on('pet:setname', (e, n) => {
   const st = loadSettings();
   st.name = String(n || '').trim().slice(0, 6);
@@ -143,6 +147,9 @@ function injectPetUI() {
     '  gap: 6px !important; opacity: .16; transition: opacity .25s ease; }',
     '#moodCard:hover { opacity: 1; }',
     '#moodBar { width: 90px !important; }',
+    '/* 逗猫棒模式：光标变成逗猫棒 */',
+    'body.teaser, body.teaser * { cursor: url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27><line x1=%274%27 y1=%2728%27 x2=%2719%27 y2=%2713%27 stroke=%27%23555%27 stroke-width=%273%27 stroke-linecap=%27round%27/><circle cx=%2722%27 cy=%2710%27 r=%275%27 fill=%27%23ffd45e%27 stroke=%27%23e0a800%27 stroke-width=%272%27/></svg>") 22 10, auto; }',
+    '#catTeaser.active { background: #ffe9a8 !important; }',
     '/* 右上角统一控制行：⠿ ✕ 声音 昼夜 天气 爪印 */',
     '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw, #dragMove {',
     '  position: fixed !important; top: 10px !important; right: auto !important; left: auto !important;',
@@ -271,10 +278,17 @@ function injectPetUI() {
     nameTag.style.display = petName ? 'block' : 'none';
   };
 
-  // —— 逗猫棒：抽屉里 🐱 开关（开启后甩鼠标，史莱姆追着光点跳）——
+  // —— 逗猫棒：抽屉里 🐱 开关（开启后光标变逗猫棒，甩鼠标史莱姆追着跳）——
   let catMode = false, altHeld = false, altX = 0, altY = 0, lastChase = 0;
   window.addEventListener('keydown', (e) => { if (e.key === 'Alt') { altHeld = true; wake(); } });
   window.addEventListener('keyup', (e) => { if (e.key === 'Alt') altHeld = false; });
+  function chaseTick(x, y, force) {
+    const now2 = performance.now();
+    if (!force && now2 - lastChase <= 420) return;
+    lastChase = now2;
+    const g = pet.pickGround && pet.pickGround(x, y);
+    if (g && pet.slime.mode === 'free' && pet.slime.pos.y <= 0.05) pet.startHops({ x: g.x, z: g.z });
+  }
   function chaseTick(x, y) {
     const now2 = performance.now();
     if (now2 - lastChase <= 420) return;
@@ -286,6 +300,10 @@ function injectPetUI() {
   // —— 摸头：按住史莱姆来回搓 → 爱心 + 果冻抖；摸太久会晕 ——
   let petting = false, strokeAccum = 0, petStart = 0, rustleCd = 0;
   window.addEventListener('pointerdown', (e) => {
+    lastActivity = performance.now();
+    if (catMode) chaseTick(e.clientX, e.clientY, true);   // 逗猫模式下点击 = 立刻扑过去
+    if (shaking) { shaking = false; petSay('嗝…晃晕啦…'); if (pet.slime) pet.slime.sq.v += 9; }
+    if (sleeping) wake();
     if (overSlime(e.clientX, e.clientY)) { petting = true; strokeAccum = 0; petStart = performance.now(); }
   }, { passive: true });
   window.addEventListener('pointerup', () => { petting = false; }, { passive: true });
@@ -528,19 +546,27 @@ function injectPetUI() {
   ver.textContent = '桌宠 v1.5.0';
   document.body.appendChild(ver);
 
-  // —— 逗猫棒开关（放进互动抽屉第一个）——
+  // —— 逗猫棒开关 + 取名入口（放进互动抽屉最前面，样式与其他按钮统一）——
   const catBtn = document.createElement('button');
-  catBtn.className = 'tool';
+  catBtn.className = 'card tool';
   catBtn.id = 'catTeaser';
   catBtn.textContent = '🐱';
-  catBtn.title = '逗猫棒：开启后移动鼠标，史莱姆追着光点跳';
+  catBtn.title = '逗猫棒：开启后光标变成逗猫棒，移动鼠标逗它';
   catBtn.addEventListener('click', () => {
     catMode = !catMode;
     catBtn.classList.toggle('active', catMode);
+    document.body.classList.toggle('teaser', catMode);   // 光标变成逗猫棒
     wake();
     petSay(catMode ? '🐱 逗猫棒开启！甩鼠标逗它～' : '逗猫棒收起来啦');
   });
+  const nameBtn = document.createElement('button');
+  nameBtn.className = 'card tool';
+  nameBtn.id = 'petNameBtn';
+  nameBtn.textContent = '🏷️';
+  nameBtn.title = '给史莱姆取名';
+  nameBtn.addEventListener('click', () => { if (window.petApi) window.petApi.openName(); });
   const toolbarEl = document.getElementById('toolbar');
+  toolbarEl.insertBefore(nameBtn, toolbarEl.firstChild);
   toolbarEl.insertBefore(catBtn, toolbarEl.firstChild);
 }
 
