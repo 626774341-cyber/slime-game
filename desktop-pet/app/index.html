@@ -2868,7 +2868,14 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
-window.__pet = { weather, dnState, camera, controls, world, slime, slimeGroup, mood };
+window.__petPickGround = (sx, sy) => {
+  const nx = (sx / innerWidth) * 2 - 1, ny = -(sy / innerHeight) * 2 + 1;
+  raycaster.setFromCamera({ x: nx, y: ny }, camera);
+  if (raycaster.ray.intersectPlane(groundPlane, _v)) return { x: _v.x, z: _v.z };
+  return null;
+};
+window.__pet = { weather, dnState, camera, controls, world, slime, slimeGroup, mood,
+  startHops, startDance, say, pickGround: window.__petPickGround };
 window.__petToggleMap = () => { world.visible = !world.visible; return world.visible; };
 </script>
 </body>
