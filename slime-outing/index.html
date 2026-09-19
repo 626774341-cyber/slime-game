@@ -157,7 +157,7 @@
   <div class="card" id="titleCard">
     <h1>🧺 史莱姆郊游 · 3D</h1>
     <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-    <span id="verChip">v1.3.3 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+    <span id="verChip">v1.4.0 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
   </div>
 
   <!-- 功能按钮 -->
@@ -270,9 +270,9 @@ const V3    = (x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 /* ================================================================
    全局状态
 ================================================================ */
-const WATER_Y = -0.35;
-const LAKE = { x:-1.8, z:1.8, r:1.3 };
-const PLAY_R = 4.6;
+const WATER_Y = 0.06;   // 池塘水面高度（岛面为 0）
+const LAKE = { x:-1.6, z:1.5, r:1.25 };
+const PLAY_R = 4.2;
 
 const S = {
   time:0, night:0, nightTarget:0,
@@ -321,6 +321,13 @@ $('homeLink').addEventListener('click', e=>{
 ui.modalWrap.onclick = e=>{ if(e.target===ui.modalWrap) ui.modalWrap.classList.remove('show'); };
 
 $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
+  <h3>v1.4.0 悬浮平顶岛 · 20x20</h3>
+  <ul>
+    <li>🏝️ 地图改为纪念碑谷式悬浮平顶岛：直径 20（20x20），底部土层锥悬浮空中</li>
+    <li>🧱 地面完全平坦，所有道具高度一致，彻底解决卡模型</li>
+    <li>💧 之前"下沉的地形"其实是池塘湖盆，现改为清晰的水池圆盘 + 沙滩圈</li>
+    <li>☁️ 移除贴地远山，新增 3 座漂浮小岛与绕岛浮云</li>
+  </ul>
   <h3>v1.3.3 加载彻底稳定</h3>
   <ul>
     <li>📦 Three.js 引擎打包进仓库自托管，不再依赖任何 CDN</li>
@@ -619,7 +626,7 @@ $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fdcff);
-scene.fog = new THREE.Fog(0xcfeafd, 9, 26);
+scene.fog = new THREE.Fog(0xcfeafd, 14, 45);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 // 自建极简环境场景（替代 RoomEnvironment，少一个 CDN 依赖）
@@ -689,7 +696,7 @@ scene.add(stars);
 const clouds = [];
 {
   const cloudMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.92 });
-  for(let i=0;i<7;i++){
+  for(let i=0;i<8;i++){
     const g = new THREE.Group();
     const n = rint(3,5);
     for(let j=0;j<n;j++){
@@ -698,7 +705,8 @@ const clouds = [];
       s.scale.y = 0.6;
       g.add(s);
     }
-    g.position.set(rand(-11,11), rand(5.5,8), rand(-11,11));
+    const a = rand(0,TAU), rr = rand(13,20);
+    g.position.set(Math.cos(a)*rr, rand(-4.5,-1.5), Math.sin(a)*rr);
     g.userData.speed = rand(0.4,1.0);
     scene.add(g); clouds.push(g);
   }
@@ -708,120 +716,84 @@ const clouds = [];
    地形（山 + 湖底 + 草坡）
 ================================================================ */
 function terrainHeight(x,z){
-  const r = Math.hypot(x,z);
-  let h = Math.sin(x*0.16)*Math.cos(z*0.14)*1.0
-        + Math.sin(x*0.05+1.7)*0.85
-        + Math.cos(z*0.06+0.6)*0.7
-        + Math.sin((x+z)*0.05+2.4)*0.35;
-  h *= smooth(2.2, 6, r);          // 中心野营地压平
-  const dl = dist2d(x,z,LAKE.x,LAKE.z);
-  h -= smooth(LAKE.r+0.6, LAKE.r-0.8, dl)*1.4;   // 小池塘
-  return h;
+  return 0;   // 纪念碑谷式平顶岛：地面完全平坦，道具高度一致不穿模
 }
 
-const terrainGeo = new THREE.PlaneGeometry(16,16,56,56);
-terrainGeo.rotateX(-Math.PI/2);
-{
-  const pos = terrainGeo.attributes.position;
-  const colors = new Float32Array(pos.count*3);
-  const cGrass = new THREE.Color(0x7cc55e);
-  const cGrass2 = new THREE.Color(0x9ad46f);
-  const cSand  = new THREE.Color(0xe8d9a0);
-  const cMud   = new THREE.Color(0xb59a68);
-  const tmp = new THREE.Color();
-  for(let i=0;i<pos.count;i++){
-    const x = pos.getX(i), z = pos.getZ(i);
-    const h = terrainHeight(x,z);
-    pos.setY(i,h);
-    const n = 0.5+0.5*Math.sin(x*12.9898+z*78.233);
-    tmp.copy(cGrass).lerp(cGrass2, n);
-    const dl = dist2d(x,z,LAKE.x,LAKE.z);
-    const sandMix = smooth(LAKE.r+1.2, LAKE.r-0.6, dl) * smooth(0.8,-0.4,h);
-    tmp.lerp(cSand, clamp(sandMix,0,1));
-    if(h < WATER_Y+0.15) tmp.lerp(cMud, smooth(WATER_Y+0.15, WATER_Y-1.2, h));
-    colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
-  }
-  terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors,3));
-  terrainGeo.computeVertexNormals();
-}
-const terrainMat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:1, map:texGrass() });
+/* --- 悬浮平顶小岛（直径 20 = 20x20） --- */
+const terrainMat = new THREE.MeshStandardMaterial({ map:texGrass(), roughness:1 });
 terrainMat.color.set(1.28, 1.28, 1.28);
-const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+const islandSideMat = new THREE.MeshStandardMaterial({ color:0x7cb356, roughness:1 });
+const terrain = new THREE.Mesh(
+  new THREE.CylinderGeometry(10, 10, 0.5, 48),
+  [islandSideMat, terrainMat, islandSideMat]   // 侧缘 / 顶面 / 底面
+);
+terrain.position.y = -0.25;   // 顶面正好在 y=0
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-/* --- 远山 --- */
+/* 岛底土层（悬浮岛造型） */
+const earthMat = new THREE.MeshStandardMaterial({ color:0x8a6a4a, roughness:1, flatShading:true });
+const earthMid = new THREE.Mesh(new THREE.CylinderGeometry(9.7, 5.6, 2.6, 48), earthMat);
+earthMid.position.y = -1.8;
+scene.add(earthMid);
+const earthTip = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 1.0, 2.4, 48),
+  new THREE.MeshStandardMaterial({ color:0x6e523a, roughness:1, flatShading:true }));
+earthTip.position.y = -4.3;
+scene.add(earthTip);
+
+/* --- 空中小浮岛（装饰） --- */
+const islets = [];
 {
-  const mtnMat = new THREE.MeshStandardMaterial({ color:0x8fae8b, roughness:1, flatShading:true });
-  const snowMat = new THREE.MeshStandardMaterial({ color:0xf4f8fb, roughness:0.9, flatShading:true });
-  const defs = [];
-  for(let i=0;i<7;i++){
-    const a = (i/7)*TAU + rand(-0.2,0.2);
-    const rr = rand(8.5,12);
-    defs.push({x:Math.cos(a)*rr, z:Math.sin(a)*rr, r:rand(2,3.5), h:rand(3.5,6.5)});
-  }
-  defs.push({x:0,z:-14,r:4,h:6.5},{x:-11,z:8,r:3.5,h:5.5});
-  for(const d of defs){
-    const m = new THREE.Mesh(new THREE.ConeGeometry(d.r,d.h,7), mtnMat);
-    m.position.set(d.x, d.h/2-2.5, d.z);
-    m.rotation.y = rand(0,TAU);
-    scene.add(m);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(d.r*0.42, d.h*0.34, 7), snowMat);
-    cap.position.set(d.x, d.h-2.5-d.h*0.17, d.z);
-    cap.rotation.y = m.rotation.y;
-    scene.add(cap);
+  const defs = [
+    [-10.5,-2.2,-2.6,1.1,true], [9.0,4.8,-3.2,0.9,false], [8.6,-6.5,-1.6,0.7,true],
+  ];
+  for(const [ix,iy,iz,ir,withTree] of defs){
+    const g = new THREE.Group();
+    const top = new THREE.Mesh(
+      new THREE.CylinderGeometry(ir, ir, 0.35, 24),
+      [islandSideMat, terrainMat, islandSideMat]
+    );
+    top.position.y = -0.175;
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(ir*0.96, 0.15, ir*1.7, 24), earthMat);
+    cone.position.y = -0.35-ir*0.85;
+    g.add(top, cone);
+    if(withTree){
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.12,0.9,6),
+        new THREE.MeshStandardMaterial({ map:texWood(), roughness:1 }));
+      trunk.position.y = 0.45;
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.55,8,7),
+        new THREE.MeshStandardMaterial({ color:0x6cbf5a, roughness:1, flatShading:true }));
+      leaf.position.y = 1.25; leaf.scale.y = 0.85;
+      g.add(trunk, leaf);
+    }
+    g.position.set(ix, iy, iz);
+    g.userData.phase = rand(0,TAU);
+    g.userData.baseY = iy;
+    scene.add(g);
+    islets.push(g);
   }
 }
 
 /* ================================================================
-   水面
+   池塘水面（清晰的水池圆盘 + 沙滩圈）
 ================================================================ */
-const waterUniforms = {
-  uTime:{value:0},
-  uShallow:{value:new THREE.Color(0x7fdcf5)},
-  uDeep:{value:new THREE.Color(0x2f8fc9)},
-  uCam:{value:new THREE.Vector3()},
-  uFog:{value:new THREE.Color(0xcfeafd)},
-  uNight:{value:0},
-};
-const waterMat = new THREE.ShaderMaterial({
-  uniforms: waterUniforms,
-  transparent:true, depthWrite:false,
-  vertexShader:`
-    uniform float uTime;
-    varying vec3 vWorld;
-    void main(){
-      vec3 p = position;
-      float w = sin(p.x*0.55 + uTime*1.7)*0.5 + cos(p.y*0.42 + uTime*1.15)*0.5 + sin((p.x+p.y)*0.24 + uTime*0.7)*0.6;
-      p.z += w*0.075;
-      vec4 wp = modelMatrix * vec4(p,1.0);
-      vWorld = wp.xyz;
-      gl_Position = projectionMatrix * viewMatrix * wp;
-    }`,
-  fragmentShader:`
-    uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uCam; uniform vec3 uFog; uniform float uNight;
-    varying vec3 vWorld;
-    void main(){
-      float mixv = 0.5 + 0.5*sin(vWorld.x*0.4 + uTime*0.8)*cos(vWorld.z*0.33 - uTime*0.6);
-      vec3 col = mix(uShallow, uDeep, mixv);
-      float spark = sin(vWorld.x*2.4 + uTime*2.2)*sin(vWorld.z*2.1 - uTime*1.8);
-      col += pow(max(spark,0.0),3.0)*0.35;
-      vec3 vdir = normalize(uCam - vWorld);
-      float fres = pow(1.0 - max(vdir.y,0.0), 2.0);
-      col = mix(col, uFog, fres*0.4);
-      col = mix(col, col*0.35+vec3(0.02,0.04,0.1), uNight);
-      float d = distance(uCam, vWorld);
-      float f = smoothstep(6.0, 18.0, d);
-      col = mix(col, uFog, f);
-      gl_FragColor = vec4(col, 0.84);
-    }`,
-});
-const waterGeo = new THREE.PlaneGeometry(LAKE.r*2+8, LAKE.r*2+8, 48, 48);
-const water = new THREE.Mesh(waterGeo, waterMat);
+const water = new THREE.Mesh(
+  new THREE.CircleGeometry(LAKE.r, 40),
+  new THREE.MeshStandardMaterial({ color:0x3fb6e8, transparent:true, opacity:0.88, roughness:0.12, metalness:0.05 })
+);
 water.rotation.x = -Math.PI/2;
 water.position.set(LAKE.x, WATER_Y, LAKE.z);
 water.renderOrder = 2;
 scene.add(water);
+
+const sandRing = new THREE.Mesh(
+  new THREE.RingGeometry(LAKE.r, LAKE.r+0.35, 40),
+  new THREE.MeshStandardMaterial({ color:0xe8d9a0, roughness:1 })
+);
+sandRing.rotation.x = -Math.PI/2;
+sandRing.position.set(LAKE.x, 0.02, LAKE.z);
+sandRing.receiveShadow = true;
+scene.add(sandRing);
 
 /* ================================================================
    地面查询（含湖 / 荷叶 / 蘑菇 / 蹦床）
@@ -855,7 +827,7 @@ const trees = [];
   const leafMatA = new THREE.MeshStandardMaterial({ color:0x4f9e4c, roughness:1, flatShading:true });
   const leafMatB = new THREE.MeshStandardMaterial({ color:0x6cbf5a, roughness:1, flatShading:true });
   const spots = [
-    [4.4,0.8],[0.8,-4.2],[-4.2,-1.8],[1.4,4.0],
+    [5.8,2.2],[-6.4,-0.8],[-2.0,6.6],[5.2,-4.6],[-5.8,-4.2],
   ];
   for(const [tx,tz] of spots){
     if(dist2d(tx,tz,LAKE.x,LAKE.z) < LAKE.r+2.5) continue;
@@ -885,15 +857,15 @@ const trees = [];
   const geo = new THREE.ConeGeometry(0.05, 0.42, 4);
   geo.translate(0,0.21,0);
   const mat = new THREE.MeshStandardMaterial({ color:0x69b84e, roughness:1 });
-  const N = 110;
+  const N = 200;
   const inst = new THREE.InstancedMesh(geo, mat, N);
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
   let placed = 0, guard = 0;
   while(placed < N && guard++ < 4000){
-    const x = rand(-4.8,4.8), z = rand(-4.8,4.8);
-    if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
-    if(terrainHeight(x,z) < WATER_Y) continue;
+    const x = rand(-8.5,8.5), z = rand(-8.5,8.5);
+    if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+0.8) continue;
+    if(dist2d(x,z,1.6,0.6) < 1.4) continue;
     dummy.position.set(x, terrainHeight(x,z), z);
     dummy.rotation.set(rand(-0.15,0.15), rand(0,TAU), rand(-0.15,0.15));
     const s = rand(0.7,1.7); dummy.scale.set(s,s,s);
@@ -915,16 +887,15 @@ const flowerHeads = [];
   const stemMat = new THREE.MeshStandardMaterial({ color:0x4e9e44, roughness:1 });
   const headGeo = new THREE.SphereGeometry(0.075,7,6);
   const headMat = new THREE.MeshStandardMaterial({ roughness:0.7 });
-  const N = 20;
+  const N = 24;
   const stems = new THREE.InstancedMesh(stemGeo, stemMat, N);
   const heads = new THREE.InstancedMesh(headGeo, headMat, N);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
   const palette = [0xff9db8,0xffd36e,0xb7a4ff,0xff8f6e,0xfff3ff,0x9fd8ff];
   let placed=0, guard=0;
   while(placed<N && guard++<4000){
-    const x = rand(-4.3,4.3), z = rand(-4.3,4.3);
-    if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+1) continue;
-    if(terrainHeight(x,z) < WATER_Y) continue;
+    const x = rand(-7.5,7.5), z = rand(-7.5,7.5);
+    if(dist2d(x,z,LAKE.x,LAKE.z) < LAKE.r+0.8) continue;
     if(dist2d(x,z,1.6,0.6) < 1.7) continue; // 野餐区留空
     const y = terrainHeight(x,z);
     dummy.position.set(x,y,z); dummy.rotation.set(0,0,0); dummy.scale.setScalar(rand(0.8,1.4));
@@ -1778,7 +1749,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
   const N = 300;
   const geo = new THREE.BufferGeometry();
   const arr = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr[i*3]=rand(-5,5); arr[i*3+1]=rand(0,5); arr[i*3+2]=rand(-5,5); }
+  for(let i=0;i<N;i++){ arr[i*3]=rand(-8,8); arr[i*3+1]=rand(0,6); arr[i*3+2]=rand(-8,8); }
   geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
   rainPts = new THREE.Points(geo, new THREE.PointsMaterial({
     map:texRainStreak(), size:0.7, transparent:true, opacity:0, depthWrite:false,
@@ -1787,7 +1758,7 @@ let rainPts = null, snowPts = null, fireflyPts = null;
 
   const geo2 = new THREE.BufferGeometry();
   const arr2 = new Float32Array(N*3);
-  for(let i=0;i<N;i++){ arr2[i*3]=rand(-5,5); arr2[i*3+1]=rand(0,4.5); arr2[i*3+2]=rand(-5,5); }
+  for(let i=0;i<N;i++){ arr2[i*3]=rand(-8,8); arr2[i*3+1]=rand(0,5.5); arr2[i*3+2]=rand(-8,8); }
   geo2.setAttribute('position', new THREE.BufferAttribute(arr2,3));
   snowPts = new THREE.Points(geo2, new THREE.PointsMaterial({
     map:texGlow('255,255,255'), size:0.22, transparent:true, opacity:0, depthWrite:false,
@@ -1817,14 +1788,14 @@ let rainbow = null;
   const g = new THREE.Group();
   const cols = [0xff6b6b,0xffa04d,0xffd93d,0x6bd96b,0x5bc8ff,0x7b7bff,0xb57bff];
   for(let i=0;i<7;i++){
-    const r = 15 + i*0.55;
+    const r = 8 + i*0.32;
     const arc = new THREE.Mesh(
-      new THREE.TorusGeometry(r, 0.26, 8, 60, Math.PI),
+      new THREE.TorusGeometry(r, 0.18, 8, 60, Math.PI),
       new THREE.MeshBasicMaterial({ color:cols[i], transparent:true, opacity:0, depthWrite:false, fog:false })
     );
     g.add(arc);
   }
-  g.position.set(LAKE.x-24, WATER_Y-1, LAKE.z-20);
+  g.position.set(-7, -1, -11);
   g.rotation.y = 0.7;
   g.visible = false;
   scene.add(g);
@@ -2735,7 +2706,7 @@ function applySlimeTransform(dt, inWater=false){
 
   slime.group.position.copy(slime.pos);
   if(inWater || slime.swimming){
-    slime.group.position.y = WATER_Y - 0.42;   // 泡在水里：下半截没入水中
+    slime.group.position.y = WATER_Y - 0.27;   // 泡在池塘里：水线没过下腹
   }
 
   // 影子
@@ -3212,8 +3183,6 @@ function updateEnvironment(dt){
   const n = S.night;
   scene.background.copy(skyDay).lerp(skyNight, n);
   scene.fog.color.copy(fogDay).lerp(fogNight, n);
-  waterUniforms.uFog.value.copy(scene.fog.color);
-  waterUniforms.uNight.value = n;
 
   hemiLight.intensity = lerp(0.85, 0.25, n);
   sunLight.intensity = lerp(2.0, 0.5, n);
@@ -3243,7 +3212,7 @@ function updateEnvironment(dt){
   // 云
   for(const c of clouds){
     c.position.x += c.userData.speed*dt;
-    if(c.position.x>13) c.position.x = -13;
+    if(c.position.x>22) c.position.x = -22;
   }
 
   // 雨/雪
@@ -3255,7 +3224,7 @@ function updateEnvironment(dt){
     const pa = rainPts.geometry.attributes.position;
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*24;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(3.5,5); pa.array[i*3]=rand(-5,5); pa.array[i*3+2]=rand(-5,5); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(5,7); pa.array[i*3]=rand(-8,8); pa.array[i*3+2]=rand(-8,8); }
     }
     pa.needsUpdate = true;
     if(AU.ctx && Math.random()<dt*8) spawnRipple(rand(LAKE.x-1.5,LAKE.x+1.5), rand(LAKE.z-1.5,LAKE.z+1.5), 0.5);
@@ -3265,7 +3234,7 @@ function updateEnvironment(dt){
     for(let i=0;i<pa.count;i++){
       pa.array[i*3+1] -= dt*1.6;
       pa.array[i*3] += Math.sin(S.time+i)*dt*0.4;
-      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(3,4.5); pa.array[i*3]=rand(-5,5); pa.array[i*3+2]=rand(-5,5); }
+      if(pa.array[i*3+1]<0){ pa.array[i*3+1]=rand(4.5,6); pa.array[i*3]=rand(-8,8); pa.array[i*3+2]=rand(-8,8); }
     }
     pa.needsUpdate = true;
     terrainMat.color.lerp(new THREE.Color(1.5,1.55,1.7), dt*0.5);
@@ -3362,8 +3331,6 @@ function tick(){
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.05);
   S.time += dt;
-  waterUniforms.uTime.value = S.time;
-  waterUniforms.uCam.value.copy(camera.position);
 
   updateSlime(dt);
   updateSlimeColor(dt);
