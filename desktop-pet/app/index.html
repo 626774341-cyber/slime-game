@@ -842,6 +842,12 @@ function cycleHat() {
   toast(hatIdx < 0 ? '摘掉了帽子' : '戴上' + HAT_NAMES[hatIdx] + '！');
   blip(500, hatIdx < 0 ? 260 : 800, 0.1, 0.09);
 }
+// —— 帽子高度自动适配当前形态 ——
+function updateHatHeight() {
+  slimeMesh.geometry.computeBoundingBox();
+  const bb = slimeMesh.geometry.boundingBox;
+  hatGroup.position.y = slimeMesh.position.y + bb.max.y - 0.03;
+}
 
 /* ================= 换色系统 ================= */
 const SLIME_COLORS = [
@@ -2528,6 +2534,7 @@ function applyEmojiShape(e) {
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   fitFaceToShape();
+  updateHatHeight();
   spawnSparkles(8);
   say('变——！');
   toast(e + ' 变身！点 🧪 可换其他形状');
@@ -2543,6 +2550,7 @@ function applyShape(i) {
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   fitFaceToShape();
+  updateHatHeight();
   spawnSparkles(6);
   say('变——！');
   toast('🧪 变成了' + SHAPE_NAMES[i]);
