@@ -630,7 +630,7 @@ function injectPetUI() {
     if (!el) {
       el = document.createElement('div');
       el.id = 'petNameTag';
-      el.style.cssText = 'position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:32;' +
+      el.style.cssText = 'position:fixed;top:14px;left:12px;z-index:32;' +
         'padding:4px 14px;border-radius:999px;background:rgba(255,255,255,.92);color:#2c4a66;' +
         'font-size:13px;box-shadow:0 2px 8px rgba(60,90,140,.3);pointer-events:none;';
       document.body.appendChild(el);
