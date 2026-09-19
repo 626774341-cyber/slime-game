@@ -849,6 +849,7 @@ const HAT_FIT = [
   { y: 1.06, s: 1.15 },   // 甜甜圈
   { y: 1.38, s: 0.9 },    // 布丁
 ];
+let currentEmoji = '';
 // 每个 emoji 的帽子戴在"头"顶（不是耳朵/装饰顶端）
 const EMOJI_HAT = {
   '🐻': { y: 1.20, s: 0.85 },   // 熊：头圆顶（耳朵旁边）
@@ -863,6 +864,13 @@ const EMOJI_HAT = {
 function updateHatHeight() {
   slimeMesh.geometry.computeBoundingBox();
   const bb = slimeMesh.geometry.boundingBox;
+  // Emoji 形态：用对应的帽子高度（不在耳朵/装饰上面）
+  if (slimeShapeIdx === -1 && currentEmojiName && EMOJI_HAT[currentEmojiName]) {
+    hatGroup.position.y = EMOJI_HAT[currentEmojiName].y;
+    hatGroup.scale.setScalar(EMOJI_HAT[currentEmojiName].s);
+    return;
+  }
+  // 经典形状 / 兜底：帽放在几何体顶部
   hatGroup.position.y = 0.68 + bb.max.y - 0.06;
 }
 
