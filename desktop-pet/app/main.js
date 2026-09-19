@@ -552,7 +552,7 @@ function injectPetUI() {
   // 可见版本徽标：一眼确认运行的是哪个版本
   const ver = document.createElement('div');
   ver.id = 'petVer';
-  ver.textContent = '桌宠 v1.5.1';
+  ver.textContent = '桌宠 v1.7.0';
   document.body.appendChild(ver);
   window.__petVersion = (v) => { ver.textContent = '桌宠 ' + v; };
 
