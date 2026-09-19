@@ -40,6 +40,22 @@ function makeTrayIcon() {
   return nativeImage.createFromBitmap(data, { width: s, height: s });
 }
 
+// ---------- 取名小窗 ----------
+let nameWin = null;
+function openNamingWindow() {
+  if (nameWin) { nameWin.focus(); return; }
+  const cur = (loadSettings().name || '').slice(0, 6);
+  nameWin = new BrowserWindow({
+    width: 300, height: 130, frame: false, transparent: true, resizable: false,
+    minimizable: false, maximizable: false, show: false, skipTaskbar: true,
+    backgroundColor: '#00000000',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false }
+  });
+  nameWin.loadFile('name.html', { query: { n: cur } });
+  nameWin.once('ready-to-show', () => nameWin.show());
+  nameWin.on('closed', () => { nameWin = null; });
+}
+
 function createTray() {
   const s = loadSettings();
   if (s.login === undefined) s.login = true;
@@ -51,6 +67,7 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示 / 隐藏桌宠', click: togglePet },
     { label: '换地图（箱庭 ⇄ 轻简）', click: () => run('window.__petToggleMap && window.__petToggleMap()') },
+    { label: '🏷️ 给史莱姆取名', click: openNamingWindow },
     { type: 'separator' },
     { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => {
@@ -94,6 +111,12 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
+ipcMain.on('pet:setname', (e, n) => {
+  const st = loadSettings();
+  st.name = String(n || '').trim().slice(0, 6);
+  saveSettings(st);
+  run('window.__petSetName && window.__petSetName(' + JSON.stringify(st.name) + ')');
+});
 
 // ---------- 摇一摇：快速甩窗口 → 史莱姆头晕 ----------
 function onWindowMove() {
@@ -542,6 +565,23 @@ function injectPetUI() {
   });
   const toolbarEl = document.getElementById('toolbar');
   toolbarEl.insertBefore(catBtn, toolbarEl.firstChild);
+
+  // —— 名牌：显示当前名字（取过名就有）——
+  window.__petSetName = (n) => {
+    let el = document.getElementById('petNameTag');
+    if (!n) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'petNameTag';
+      el.style.cssText = 'position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:32;' +
+        'padding:4px 14px;border-radius:999px;background:rgba(255,255,255,.92);color:#2c4a66;' +
+        'font-size:13px;box-shadow:0 2px 8px rgba(60,90,140,.3);pointer-events:none;';
+      document.body.appendChild(el);
+    }
+    el.textContent = '🏷️ ' + n;
+  };
+  const savedName = (loadSettings().name || '');
+  if (savedName) setTimeout(() => window.__petSetName(savedName), 300);
 }
 
 function createWindow() {
@@ -585,6 +625,8 @@ function createWindow() {
       });
     run('window.__petTaste = ' + JSON.stringify((loadSettings().taste) || { like: '', hate: '' }));
     run("window.__petVersion && window.__petVersion(" + JSON.stringify(app.getVersion()) + ")");
+    const savedName = (loadSettings().name || '');
+    if (savedName) setTimeout(() => run('window.__petSetName && window.__petSetName(' + JSON.stringify(savedName) + ')'), 600);
   });
   win.on('move', onWindowMove);
   const saveLater = () => {
