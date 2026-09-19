@@ -101,13 +101,22 @@ function injectPetUI() {
     '#title, #hints, #starHud, #photoBtn { display: none !important; }',
     '#petFx { position: fixed; inset: 0; z-index: 2; pointer-events: none; }',
     '#c { transition: transform .45s ease; }',
-    '/* ❤️ 心情条回归：顶部居中小胶囊 */',
+    '/* ❤️ 心情条：平时半透明低调，悬停才完整显示 */',
     '#moodCard { display: flex !important; top: 10px !important; left: 50% !important; right: auto !important;',
     '  bottom: auto !important; transform: translateX(-50%) !important; padding: 6px 12px !important;',
     '  border-radius: 999px !important; background: rgba(255,255,255,.95) !important;',
     '  box-shadow: 0 3px 10px rgba(60,90,140,.3) !important; z-index: 32; animation: none !important;',
-    '  gap: 6px !important; }',
+    '  gap: 6px !important; opacity: .16; transition: opacity .25s ease; }',
+    '#moodCard:hover { opacity: 1; }',
     '#moodBar { width: 90px !important; }',
+    '/* 📂 拖喂文件：提示条 + 飞行动画 */',
+    '#petToast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);',
+    '  background: rgba(35,58,82,.85); color: #fff; font-size: 13px; padding: 8px 18px;',
+    '  border-radius: 999px; opacity: 0; transition: all .35s ease; pointer-events: none;',
+    '  z-index: 40; white-space: nowrap; }',
+    '#petToast.show { opacity: 1; }',
+    '.flyFile { position: fixed; z-index: 40; font-size: 30px; pointer-events: none;',
+    '  transition: all .6s cubic-bezier(.5,-0.3,.7,1); }',
     '/* 右上角统一控制行：✕ 声音 昼夜 天气 爪印（实体白钮） */',
     '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw {',
     '  position: fixed !important; top: 10px !important; right: auto !important; left: auto !important;',
@@ -259,13 +268,31 @@ function injectPetUI() {
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.283); ctx.fill();
       }
     }
+    for (let i = treats.length - 1; i >= 0; i--) {
+      const t2 = treats[i];
+      t2.t = (t2.t || 0) + dt; t2.life -= dt * 0.9;
+      t2.x += t2.vx * dt; t2.y += t2.vy * dt; t2.vy += 60 * dt;
+      if (t2.life <= 0) { treats.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, Math.min(1, t2.life));
+      ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(t2.ch, t2.x, t2.y);
+    }
     ctx.globalAlpha = 1;
-    // —— 地图边缘探头：史莱姆走到小岛边缘 → 身体压扁趴下往边上张望 ——
-    const sp = pet.slime.pos, B = 4.3, m = 1.3;
-    let k = 0;
-    if (Math.abs(sp.x) > B - m) k = Math.min(1, (Math.abs(sp.x) - (B - m)) / m);
-    if (Math.abs(sp.z) > B - m) k = Math.max(k, Math.min(1, (Math.abs(sp.z) - (B - m)) / m));
-    if (k > 0) pet.slime.sq.x = Math.max(pet.slime.sq.x, 0.30 * k);
+    // —— 地图边缘探头：史莱姆走到小岛边缘 → 压扁摊宽 + 果冻式朝边缘倾倒，看岛下面 ——
+    const sp = pet.slime.pos, B = 4.3, m = 1.4;
+    let k = 0, lx = 0, lz = 0;
+    if (sp.x > B - m) { k = (sp.x - (B - m)) / m; lx = 0.24 * k; }
+    else if (sp.x < -(B - m)) { k = (-(B - m) - sp.x) / m; lx = -0.24 * k; }
+    if (sp.z > B - m) { const k2 = (sp.z - (B - m)) / m; k = Math.max(k, k2); lz = 0.24 * k2; }
+    else if (sp.z < -(B - m)) { const k2 = (-(B - m) - sp.z) / m; k = Math.max(k, k2); lz = -0.24 * k2; }
+    if (k > 0) {
+      pet.slime.lean.x = lx; pet.slime.lean.z = lz;                 // 果冻式倾倒
+      pet.slime.sq.x = Math.max(pet.slime.sq.x, 0.30 * k);          // 身体压扁摊宽
+      pet.slimeGroup.rotation.z = (sp.x > 0 ? -1 : 1) * 0.2 * k;    // 身体朝边缘探出
+      pet.slimeGroup.rotation.x = (sp.z > 0 ? 1 : -1) * 0.16 * k;
+    } else {
+      pet.slimeGroup.rotation.z = 0; pet.slimeGroup.rotation.x = 0;
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -288,6 +315,58 @@ function injectPetUI() {
   paw.title = '互动菜单';
   paw.addEventListener('click', () => document.body.classList.toggle('pet-open'));
   document.body.appendChild(paw);
+
+  // —— 拖喂玩法：把桌面文件拖给史莱姆吃掉 ——
+  const petToast = document.createElement('div');
+  petToast.id = 'petToast';
+  document.body.appendChild(petToast);
+  function petSay(msg) {
+    petToast.textContent = msg;
+    petToast.classList.add('show');
+    clearTimeout(petToast._t);
+    petToast._t = setTimeout(() => petToast.classList.remove('show'), 2200);
+  }
+  function flyAndEat(name, x, y) {
+    const icon = document.createElement('div');
+    icon.className = 'flyFile';
+    icon.textContent = '📄';
+    icon.style.left = (x - 15) + 'px'; icon.style.top = (y - 15) + 'px';
+    document.body.appendChild(icon);
+    requestAnimationFrame(() => {
+      icon.style.left = (innerWidth / 2 - 15) + 'px';
+      icon.style.top = (innerHeight * 0.45 - 15) + 'px';
+      icon.style.transform = 'scale(0.2) rotate(340deg)';
+      icon.style.opacity = '0';
+    });
+    setTimeout(() => icon.remove(), 650);
+    if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + 12);
+    if (pet.slime) { pet.slime.sq.x = 0.35; pet.slime.moodT = 0.8; }
+    spawnTreats(innerWidth / 2, innerHeight * 0.42);
+    petSay('😋 史莱姆把「' + name + '」吃掉了！');
+  }
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    wake(); lastActivity = performance.now();
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    wake(); lastActivity = performance.now();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    let name = f.name || '文件';
+    if (window.petApi) { try { name = window.petApi.pathForFile(f).split('/').pop() || name; } catch { } }
+    flyAndEat(name, e.clientX, e.clientY);
+  });
+
+  // 爱心彩糖（拖喂 / 互动奖励时飞出）
+  const treats = [];
+  function spawnTreats(x, y) {
+    for (let i = 0; i < 6; i++) {
+      treats.push({ x: x + (Math.random() - 0.5) * 60, y: y + (Math.random() - 0.5) * 30,
+        vx: (Math.random() - 0.5) * 90, vy: -(60 + Math.random() * 90),
+        life: 1, ch: ['💖', '✨', '💗'][Math.floor(Math.random() * 3)] });
+    }
+  }
 }
 
 function createWindow() {
