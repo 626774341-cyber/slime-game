@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧸 slime-toys 组件演示</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#a5dcff;}
+  #hint{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.85);
+    padding:8px 18px;border-radius:999px;font-size:13px;color:#3d4a3f;}
+</style>
+</head>
+<body>
+<div id="hint">点击鸭子/青蛙/兔子/气球有交互 · 演示球会自己蹦，落到蹦床和荷叶上会弹飞</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+import { createToys } from './slime-toys.js';
+
+/* ---- 基础场景 ---- */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa5dcff);
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
+
+scene.add(new THREE.HemisphereLight(0xbfe8ff, 0x7fae6a, 0.9));
+const sun = new THREE.DirectionalLight(0xfff2d8, 2);
+sun.position.set(10, 14, 8);
+sun.castShadow = true;
+scene.add(sun);
+
+/* ---- 平地（演示用：也可以换成任意起伏地形，组件会通过 groundY 适配） ---- */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(12, 48),
+  new THREE.MeshStandardMaterial({ color:0x8fce62, roughness:1 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ---- 水塘（鸭子在此游泳） ---- */
+const pond = new THREE.Mesh(
+  new THREE.CircleGeometry(2.5, 36),
+  new THREE.MeshStandardMaterial({ color:0x2f9dd8, transparent:true, opacity:0.9 })
+);
+pond.rotation.x = -Math.PI/2;
+pond.position.set(0, 0.02, 5);
+scene.add(pond);
+
+/* ---- ⭐ 一行接入全部玩具 ---- */
+const toys = createToys(THREE, scene, camera, {
+  groundY: (x, z) => 0,          // 你的地形高度函数
+  domElement: renderer.domElement,
+  pond: { x: 0, z: 5, r: 2.5 },  // 水域（鸭子会在这里游泳）
+  trampoline: { x: 0, z: 1.5 },  // 蹦床
+  rabbit: { x: -2, z: -1 },      // 小兔子
+  balloons: { x: 2, z: -2 },     // 气球束
+  frogPads: [[-1.4, 4.2], [0.6, 4.6]],  // 荷叶
+  onEvent: (type, data) => console.log('[toy event]', type),
+});
+
+/* ---- 演示球：自动蹦跳，落在蹦床/荷叶上会被弹飞 ---- */
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.3, 18, 14),
+  new THREE.MeshStandardMaterial({ color:0xff6b8f, roughness:0.4 })
+);
+ball.castShadow = true;
+scene.add(ball);
+const bvel = new THREE.Vector3(rand(-1,1), 5, rand(-1,1));
+let hopT = 0;
+function rand(a,b){ return a+Math.random()*(b-a); }
+
+/* ---- 相机缓慢环绕 ---- */
+let camA = 0;
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+(function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // 演示球物理：展示 toys.getGroundInfo + toys.bounceAt 的用法
+  bvel.y -= 18*dt;
+  ball.position.addScaledVector(bvel, dt);
+  const info = toys.getGroundInfo(ball.position.x, ball.position.z);
+  if(ball.position.y < info.h + 0.3){
+    ball.position.y = info.h + 0.3;
+    const vy = toys.bounceAt(ball.position.x, ball.position.z, -bvel.y);
+    if(vy !== null){ bvel.y = vy; }
+    else if(bvel.y < -1){ bvel.y *= -0.5; }
+    else {
+      bvel.y = 0;
+      hopT -= dt;
+      if(hopT <= 0){
+        hopT = rand(0.4, 1.2);
+        const a = rand(0, 6.28);
+        bvel.x = Math.cos(a)*rand(0.5, 2); bvel.z = Math.sin(a)*rand(0.5, 2);
+        bvel.y = rand(4, 7);
+      }
+    }
+  }
+  const bd = Math.hypot(ball.position.x, ball.position.z);
+  if(bd > 8){ ball.position.x *= 8/bd; ball.position.z *= 8/bd; }
+
+  // 玩具更新
+  toys.update(dt, t);
+
+  // 相机环绕
+  camA += dt*0.12;
+  camera.position.set(Math.sin(camA)*11, 6, Math.cos(camA)*11);
+  camera.lookAt(0, 0.5, 2);
+
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
