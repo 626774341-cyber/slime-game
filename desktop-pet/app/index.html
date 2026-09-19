@@ -852,14 +852,14 @@ const HAT_FIT = [
 let currentEmoji = '';
 // 每个 emoji 的帽子戴在"头"顶（不是耳朵/装饰顶端）
 const EMOJI_HAT = {
-  '🐻': { y: 1.20, s: 0.85 },   // 熊：头圆顶（耳朵旁边）
-  '🐰': { y: 1.35, s: 0.85 },   // 兔：圆头顶（耳朵下方）
-  '🍄': { y: 1.72, s: 1.15 },   // 蘑菇：伞盖顶部
-  '🐢': { y: 1.30, s: 1.1 },    // 龟：壳顶
-  '🥕': { y: 1.02, s: 0.75 },   // 胡萝卜：身子顶部
-  '🧁': { y: 1.42, s: 0.9 },    // 蛋糕：奶油顶
-  '🦆': { y: 1.48, s: 0.8 },    // 鸭：圆头顶
-  '🌵': { y: 1.38, s: 0.9 },    // 仙人掌：主干顶
+  '🐻': { y: 1.05, s: 0.85 },   // 熊：帽檐贴住头圆顶
+  '🐰': { y: 1.20, s: 0.85 },   // 兔：帽檐贴住圆头
+  '🍄': { y: 1.55, s: 1.15 },   // 蘑菇：帽檐贴住伞盖
+  '🐢': { y: 1.15, s: 1.1 },    // 龟：帽檐贴住壳顶
+  '🥕': { y: 0.88, s: 0.75 },   // 胡萝卜：帽檐贴住身子
+  '🧁': { y: 1.28, s: 0.9 },    // 蛋糕：帽檐贴住奶油
+  '🦆': { y: 1.30, s: 0.8, z: 0.12 },  // 鸭：帽檐贴住头（微前移）
+  '🌵': { y: 1.22, s: 0.9 },    // 仙人掌：帽檐贴住主干
 };
 function updateHatHeight() {
   slimeMesh.geometry.computeBoundingBox();
@@ -867,11 +867,13 @@ function updateHatHeight() {
   // Emoji 形态：用对应的帽子高度（不在耳朵/装饰上面）
   if (slimeShapeIdx === -1 && currentEmojiName && EMOJI_HAT[currentEmojiName]) {
     hatGroup.position.y = EMOJI_HAT[currentEmojiName].y;
+    hatGroup.position.z = EMOJI_HAT[currentEmojiName].z || 0;
     hatGroup.scale.setScalar(EMOJI_HAT[currentEmojiName].s);
     return;
   }
   // 经典形状 / 兜底：帽放在几何体顶部
   hatGroup.position.y = 0.68 + bb.max.y - 0.06;
+  hatGroup.position.z = 0;
 }
 
 /* ================= 换色系统 ================= */
