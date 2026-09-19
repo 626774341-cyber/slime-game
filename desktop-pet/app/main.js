@@ -1,7 +1,57 @@
 // 史莱姆桌宠：无边框透明置顶窗口，箱庭小岛浮在桌面上
-const { app, BrowserWindow } = require('electron');
+// 托盘常驻：显示/隐藏、换地图、退出；✕ = 隐藏到托盘
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen } = require('electron');
 
-let win;
+let win = null, tray = null, quitting = false, moveTimer = null;
+
+// 程序化画一个史莱姆蓝的圆形托盘图标（16~18px 足够）
+function makeTrayIcon() {
+  const s = 18, data = Buffer.alloc(s * s * 4);
+  const c = (s - 1) / 2, r = s / 2 - 0.5;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const i = (y * s + x) * 4;
+      const d = Math.hypot(x - c, y - c);
+      let a = 0;
+      if (d <= r - 1) a = 255; else if (d <= r) a = Math.round(255 * (r - d));
+      data[i] = 0xff; data[i + 1] = 0xc8; data[i + 2] = 0x54; data[i + 3] = a; // BGRA
+    }
+  }
+  return nativeImage.createFromBitmap(data, { width: s, height: s });
+}
+
+function createTray() {
+  tray = new Tray(makeTrayIcon());
+  tray.setToolTip('史莱姆桌宠');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示 / 隐藏桌宠', click: togglePet },
+    { label: '换地图（箱庭 ⇄ 轻简）', click: () => run('window.__petToggleMap && window.__petToggleMap()') },
+    { type: 'separator' },
+    { label: '退出', click: () => { quitting = true; app.quit(); } }
+  ]));
+}
+
+function togglePet() {
+  if (!win) return;
+  if (win.isVisible()) win.hide();
+  else { win.show(); win.focus(); }
+}
+
+function run(js) {
+  if (win && !win.isDestroyed()) win.webContents.executeJavaScript(js).catch(() => {});
+}
+
+// 窗口贴近屏幕边缘时，让史莱姆"扒边探头"
+function sendEdge() {
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  const b = win.getBounds(), wa = screen.getPrimaryDisplay().workArea;
+  let dir = null;
+  if (b.x - wa.x <= 40) dir = 'left';
+  else if (wa.x + wa.width - (b.x + b.width) <= 40) dir = 'right';
+  else if (b.y - wa.y <= 40) dir = 'top';
+  else if (wa.y + wa.height - (b.y + b.height) <= 40) dir = 'bottom';
+  run('window.__petEdge && window.__petEdge(' + JSON.stringify(dir) + ')');
+}
 
 function injectPetUI() {
   // —— 以下代码运行在页面里（模块脚本已执行完，window.__pet 可用）——
@@ -10,6 +60,7 @@ function injectPetUI() {
     'html, body { background: transparent !important; }',
     '#title, #hints, #moodCard, #starHud, #photoBtn { display: none !important; }',
     '#petFx { position: fixed; inset: 0; z-index: 2; pointer-events: none; }',
+    '#c { transition: transform .45s ease; }',
     '/* 右上角统一控制行：✕ 声音 昼夜 天气 爪印（实体白钮，不透明） */',
     '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw {',
     '  position: fixed !important; top: 10px !important; right: auto !important; left: auto !important;',
@@ -68,6 +119,25 @@ function injectPetUI() {
   sizeFx();
   fitView(true);                                   // 启动即完整展示全岛
   window.addEventListener('resize', onResize);
+
+  // —— 贴边探头：主进程通知当前贴的是哪条边，小岛微微倾斜"扒边" ——
+  window.__petEdge = (dir) => {
+    const c = document.getElementById('c');
+    if (!c) return;
+    const map = {
+      left: 'translateX(-16px) rotateZ(-2.5deg)',
+      right: 'translateX(16px) rotateZ(2.5deg)',
+      top: 'translateY(-14px) scale(1.02)',
+      bottom: 'translateY(14px) scale(0.97)'
+    };
+    c.style.transform = map[dir] || 'none';
+  };
+  // —— 换地图：箱庭 ⇄ 轻简（只看史莱姆）——
+  window.__petToggleMap = () => {
+    const p = window.__pet;
+    if (p.world) p.world.visible = !p.world.visible;
+    return !!(p.world && p.world.visible);
+  };
 
   // 粒子
   const newMote = () => ({ x: Math.random() * fx.width, y: Math.random() * fx.height,
@@ -131,7 +201,7 @@ function injectPetUI() {
   const closeBtn = document.createElement('div');
   closeBtn.id = 'petClose';
   closeBtn.textContent = '✕';
-  closeBtn.title = '退出桌宠';
+  closeBtn.title = '隐藏桌宠（顶栏托盘图标可找回）';
   closeBtn.addEventListener('click', () => window.close());
   document.body.appendChild(closeBtn);
 
@@ -144,9 +214,12 @@ function injectPetUI() {
 }
 
 function createWindow() {
+  const wa = screen.getPrimaryDisplay().workArea;
   win = new BrowserWindow({
     width: 700,
     height: 600,
+    x: Math.max(wa.x, wa.x + wa.width - 720),
+    y: Math.max(wa.y, wa.y + wa.height - 620),
     minWidth: 320,
     minHeight: 280,
     transparent: true,
@@ -160,7 +233,8 @@ function createWindow() {
     alwaysOnTop: true,
     backgroundColor: '#00000000',
     webPreferences: {
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      webSecurity: false              // 允许加载本地 vendor 里的 ES 模块（完全离线）
     }
   });
   win.setAlwaysOnTop(true, 'floating');
@@ -169,8 +243,16 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     win.webContents.executeJavaScript('(' + injectPetUI.toString() + ')()');
   });
+  win.on('close', (e) => {
+    if (!quitting) { e.preventDefault(); win.hide(); }   // ✕ = 隐藏到托盘
+  });
+  win.on('move', () => {
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(sendEdge, 120);
+  });
   win.on('closed', () => { win = null; });
 }
 
-app.whenReady().then(createWindow);
-app.on('window-all-closed', () => app.quit());
+app.whenReady().then(() => { createWindow(); createTray(); });
+app.on('before-quit', () => { quitting = true; });
+app.on('window-all-closed', () => { /* 托盘常驻，不自动退出 */ });
