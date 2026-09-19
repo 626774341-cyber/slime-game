@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🛶 湖泊郊游 · 3D 互动小世界</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧺</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛶</text></svg>">
+<link rel="modulepreload" href="./three.module.js">
 <style>
   :root{
     --card-bg: rgba(255,255,255,.85);
@@ -157,7 +158,7 @@
   <div class="card" id="titleCard">
     <h1>🛶 湖泊郊游 · 3D</h1>
     <div class="sub">湖畔探索资料片 · 人机交互小组作业</div>
-    <span id="verChip">v1.5.0 · 湖泊郊游</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+    <span id="verChip">v1.5.1 · 湖泊郊游</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
   </div>
 
   <!-- 功能按钮 -->
@@ -220,28 +221,46 @@ window.addEventListener('error', e=>{
   const el = document.getElementById('loadErr');
   if(el){ el.style.display='block'; el.textContent = '出错了：'+(e.message||e.type); }
 });
-// 8 秒后若 3D 引擎仍未就绪，给出网络提示与重试按钮
+// 加载阶段提示（由 module 脚本调用）
+window.__loadStage = function(text){
+  var lt = document.getElementById('loadText');
+  if(lt && !window.__outingLoaded) lt.textContent = text;
+};
+if(!window.WebGLRenderingContext){
+  var err0 = document.getElementById('loadErr');
+  if(err0){ err0.style.display='block'; err0.textContent = '当前浏览器不支持 WebGL，无法运行 3D 场景，请换用 Chrome / Edge / Safari。'; }
+}
+// 20s：温和提示（首次要下载 3D 引擎，弱网较慢是正常的）；35s：才给重试按钮
 setTimeout(function(){
-  if(!window.__outingLoaded){
-    var lt = document.getElementById('loadText');
+  if(window.__outingLoaded) return;
+  var err = document.getElementById('loadErr');
+  if(err){ err.style.display='block'; err.textContent = '⏳ 还在下载 3D 引擎（首次访问约 0.3~1.3MB，弱网较慢），请再等等…'; }
+}, 20000);
+setTimeout(function(){
+  if(window.__outingLoaded) return;
+  var err = document.getElementById('loadErr');
+  if(err){ err.textContent = '😢 35 秒了还没下完，多半是网络不通。换 Wi-Fi / 热点后点下面按钮重试。'; }
+  var btn = document.createElement('button');
+  btn.textContent = '🔄 重试加载';
+  btn.style.cssText = 'margin-top:14px;padding:9px 26px;border:none;border-radius:12px;background:#ff8fb0;color:#fff;font-size:14px;font-family:inherit;';
+  btn.onclick = function(){ location.reload(); };
+  var loading = document.getElementById('loading');
+  if(loading) loading.appendChild(btn);
+}, 35000);
+// 渲染看门狗：加载完成但 4 秒内画面没渲染出来 → 说明渲染环节出错
+setTimeout(function(){
+  if(window.__outingLoaded && !window.__rendered){
     var err = document.getElementById('loadErr');
-    if(lt) lt.textContent = '加载超时 😥';
-    if(err){
-      err.style.display = 'block';
-      err.textContent = '3D 资源（Three.js CDN）加载失败，多半是网络问题。请换 Wi-Fi / 热点后点下面按钮重试；用 Chrome 打开效果最佳。';
-    }
-    var btn = document.createElement('button');
-    btn.textContent = '🔄 重试加载';
-    btn.style.cssText = 'margin-top:14px;padding:9px 26px;border:none;border-radius:12px;background:#ff8fb0;color:#fff;font-size:14px;font-family:inherit;';
-    btn.onclick = function(){ location.reload(); };
+    if(err){ err.style.display='block'; err.textContent = '😥 世界构建后渲染失败。请截图此页发给开发者（或按 F12 把控制台红色报错发来）。'; }
     var loading = document.getElementById('loading');
-    if(loading) loading.appendChild(btn);
+    if(loading){ loading.classList.remove('hide'); }
   }
-}, 8000);
+}, window.__outingLoaded ? 1500 : 25000);
 </script>
 
 <script type="module">
 // Three.js 三级加载：仓库自托管（最稳）→ jsdelivr → unpkg
+window.__loadStage('📥 正在下载 3D 引擎…');
 let THREE;
 try{
   THREE = await import('./three.module.js');
@@ -256,6 +275,7 @@ try{
     }
   }
 }
+window.__loadStage('🏗️ 正在构建湖畔世界…');
 
 /* ================================================================
    工具
@@ -3581,6 +3601,7 @@ function tick(){
   }
 
   renderer.render(scene, camera);
+  window.__rendered = true;
 }
 
 /* --- 给食物记录野餐布家坐标（用于补货） --- */
