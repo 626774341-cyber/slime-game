@@ -4,7 +4,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require
 const fs = require('fs');
 const path = require('path');
 
-let win = null, tray = null, nameWin = null, quitting = false;
+let win = null, tray = null, quitting = false;
 let hovering = false, saveTimer = null, cursorTimer = null, lastShakeSent = 0;
 const moveTimes = [];
 
@@ -40,21 +40,6 @@ function makeTrayIcon() {
   return nativeImage.createFromBitmap(data, { width: s, height: s });
 }
 
-// ---------- 取名小窗 ----------
-function openNameWindow() {
-  if (nameWin) { nameWin.focus(); return; }
-  const cur = (loadSettings().name || '').slice(0, 6);
-  nameWin = new BrowserWindow({
-    width: 300, height: 130, frame: false, transparent: true, resizable: false,
-    minimizable: false, maximizable: false, show: false, skipTaskbar: true,
-    backgroundColor: '#00000000',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false }
-  });
-  nameWin.loadFile('name.html', { query: { n: cur } });
-  nameWin.once('ready-to-show', () => nameWin.show());
-  nameWin.on('closed', () => { nameWin = null; });
-}
-
 function createTray() {
   const s = loadSettings();
   if (s.login === undefined) s.login = true;
@@ -66,7 +51,6 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示 / 隐藏桌宠', click: togglePet },
     { label: '换地图（箱庭 ⇄ 轻简）', click: () => run('window.__petToggleMap && window.__petToggleMap()') },
-    { label: '给史莱姆取名', click: openNameWindow },
     { type: 'separator' },
     { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => {
@@ -110,13 +94,6 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
-ipcMain.on('pet:openname', () => openNameWindow());
-ipcMain.on('pet:setname', (e, n) => {
-  const st = loadSettings();
-  st.name = String(n || '').trim().slice(0, 6);
-  saveSettings(st);
-  run('window.__petSetName && window.__petSetName(' + JSON.stringify(st.name) + ')');
-});
 
 // ---------- 摇一摇：快速甩窗口 → 史莱姆头晕 ----------
 function onWindowMove() {
@@ -184,9 +161,6 @@ function injectPetUI() {
     '#petSleep { position: fixed; font-size: 34px; z-index: 3; pointer-events: none; display: none;',
     '  animation: petZzz 2s ease-in-out infinite; }',
     '@keyframes petZzz { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }',
-    '#petName { position: fixed; z-index: 31; pointer-events: none; display: none; white-space: nowrap;',
-    '  padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.95); color: #2c4a66;',
-    '  font-size: 12px; box-shadow: 0 2px 6px rgba(60,90,140,.3); }',
     '#petToast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);',
     '  background: rgba(35,58,82,.85); color: #fff; font-size: 13px; padding: 8px 18px;',
     '  border-radius: 999px; opacity: 0; transition: all .35s ease; pointer-events: none;',
@@ -267,16 +241,6 @@ function injectPetUI() {
   }, { passive: true });
   window.addEventListener('wheel', () => { lastActivity = performance.now(); if (sleeping) wake(); }, { passive: true });
 
-  // —— 叫名字：头顶名牌 ——
-  let petName = '';
-  const nameTag = document.createElement('div');
-  nameTag.id = 'petName';
-  document.body.appendChild(nameTag);
-  window.__petSetName = (n) => {
-    petName = n || '';
-    nameTag.textContent = petName;
-    nameTag.style.display = petName ? 'block' : 'none';
-  };
 
   // —— 逗猫棒：抽屉里 🐱 开关（开启后光标变逗猫棒，甩鼠标史莱姆追着跳）——
   let catMode = false, altHeld = false, altX = 0, altY = 0, lastChase = 0;
@@ -345,6 +309,15 @@ function injectPetUI() {
   }
   let lastFed = '';
   window.addEventListener('dragover', (e) => { e.preventDefault(); wake(); lastActivity = performance.now(); });
+  // —— 偏食系统：每只史莱姆随机最爱 / 讨厌的文件类别 ——
+  function extCat(ext) {
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(ext)) return '图片';
+    if (['mp3', 'wav', 'aac', 'm4a', 'flac'].includes(ext)) return '音乐';
+    if (['js', 'json', 'md', 'txt', 'html', 'css', 'py', 'ts'].includes(ext)) return '文本';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '压缩包';
+    return '其他';
+  }
+  let feedCount = 0, hintShown = false;
   window.addEventListener('drop', (e) => {
     e.preventDefault();
     wake(); lastActivity = performance.now();
@@ -353,24 +326,27 @@ function injectPetUI() {
     let name = f.name || '文件';
     if (window.petApi) { try { name = window.petApi.pathForFile(f).split('/').pop() || name; } catch { } }
     const ext = (name.split('.').pop() || '').toLowerCase();
+    const taste = window.__petTaste || { like: '', hate: '' };
+    const cat = extCat(ext);
     if (name === lastFed) { petSay('「' + name + '」吃过了啦…换一个嘛'); if (pet.slime) pet.slime.sq.v -= 5; return; }
     lastFed = name;
-    if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + 12);
     if (pet.slime) { pet.slime.sq.x = 0.35; pet.slime.moodT = 0.8; }
-    spawnTreats(innerWidth / 2, innerHeight * 0.45);
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(ext)) petSay('🖼️ 好漂亮的画！挂在岛上啦～');
-    else if (['mp3', 'wav', 'aac', 'm4a', 'flac'].includes(ext)) {
-      petSay('🎵 好听！跟着节奏跳一个！');
-      if (pet.startDance) pet.startDance();
+    if (cat === taste.like) {
+      if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + 20);
+      spawnTreats(innerWidth / 2, innerHeight * 0.45);
+      spawnTreats(innerWidth / 2, innerHeight * 0.45);
+      petSay('🎉 最爱的「' + cat + '」！爱死你了！');
+    } else if (cat === taste.hate) {
+      if (pet.mood) pet.mood.happy = Math.max(0, pet.mood.happy - 6);
+      if (pet.slime) pet.slime.sq.v -= 6;
+      petSay('唔…「' + cat + '」不太喜欢…换一个嘛');
+    } else {
+      if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + 12);
+      spawnTreats(innerWidth / 2, innerHeight * 0.45);
+      petSay('😋 「' + cat + '」脆脆的，好吃！');
     }
-    else if (['js', 'json', 'md', 'txt', 'html', 'css', 'py', 'ts'].includes(ext)) {
-      f.text().then(t => {
-        const first = (t || '').split('\n')[0].trim().slice(0, 22);
-        petSay(first ? '📖 学会了一句：' + first : '📖 咦…学到了新东西！');
-      }).catch(() => petSay('📖 咦…学到了新东西！'));
-    }
-    else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) petSay('📦 咔嚓咔嚓，脆脆的！');
-    else petSay('😋 史莱姆把「' + name + '」吃掉了！');
+    feedCount++;
+    if (feedCount === 2 && !hintShown) { hintShown = true; setTimeout(() => petSay('（小声）其实我最爱吃「' + (taste.like || '…') + '」…'), 2400); }
   });
 
   // —— 相机贴合：四角恒可见 ——
@@ -503,11 +479,6 @@ function injectPetUI() {
       sleepBubble.style.left = (s.x + 34) + 'px';
       sleepBubble.style.top = (s.y - 90) + 'px';
     }
-    if (petName) {
-      const v = pet.slimeGroup.position.clone(); v.y += 1.2; v.project(pet.camera);
-      nameTag.style.left = ((v.x * 0.5 + 0.5) * innerWidth - nameTag.offsetWidth / 2) + 'px';
-      nameTag.style.top = ((-v.y * 0.5 + 0.5) * innerHeight - 58) + 'px';
-    }
     // —— 小岛边缘倾斜：史莱姆到边缘 → 整岛朝那边微倾（探头看边下） ——
     const sp = pet.slime.pos, B = 4.3, m = 1.4;
     let prx = 0, prz = 0, ptx = 0, pty = 0;
@@ -569,14 +540,7 @@ function injectPetUI() {
     wake();
     petSay(catMode ? '🐱 逗猫棒开启！甩鼠标逗它～' : '逗猫棒收起来啦');
   });
-  const nameBtn = document.createElement('button');
-  nameBtn.className = 'card tool';
-  nameBtn.id = 'petNameBtn';
-  nameBtn.textContent = '🏷️';
-  nameBtn.title = '给史莱姆取名';
-  nameBtn.addEventListener('click', () => { if (window.petApi) window.petApi.openName(); });
   const toolbarEl = document.getElementById('toolbar');
-  toolbarEl.insertBefore(nameBtn, toolbarEl.firstChild);
   toolbarEl.insertBefore(catBtn, toolbarEl.firstChild);
 }
 
@@ -619,9 +583,8 @@ function createWindow() {
             new Date().toISOString() + ' ' + String(err) + '\n');
         } catch { }
       });
+    run('window.__petTaste = ' + JSON.stringify((loadSettings().taste) || { like: '', hate: '' }));
     run("window.__petVersion && window.__petVersion(" + JSON.stringify(app.getVersion()) + ")");
-    const n = (loadSettings().name || '');
-    if (n) setTimeout(() => run('window.__petSetName && window.__petSetName(' + JSON.stringify(n) + ')'), 400);
   });
   win.on('move', onWindowMove);
   const saveLater = () => {
@@ -636,7 +599,19 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
-app.whenReady().then(() => { createWindow(); createTray(); startCursorPoll(); });
+function ensureTaste() {
+  const st = loadSettings();
+  if (!st.taste) {
+    const cats = ['图片', '音乐', '文本', '压缩包'];
+    const like = cats[Math.floor(Math.random() * cats.length)];
+    let hate = cats[Math.floor(Math.random() * cats.length)];
+    while (hate === like) hate = cats[Math.floor(Math.random() * cats.length)];
+    st.taste = { like, hate };
+    saveSettings(st);
+  }
+}
+
+app.whenReady().then(() => { ensureTaste(); createWindow(); createTray(); startCursorPoll(); });
 app.on('activate', () => {
   if (win) { win.show(); win.focus(); } else createWindow();
 });
