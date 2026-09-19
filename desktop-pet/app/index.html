@@ -842,11 +842,31 @@ function cycleHat() {
   toast(hatIdx < 0 ? '摘掉了帽子' : '戴上' + HAT_NAMES[hatIdx] + '！');
   blip(500, hatIdx < 0 ? 260 : 800, 0.1, 0.09);
 }
-// —— 帽子高度自动适配当前形态 ——
+// —— 帽子高度和缩放自动适配当前形态 ——
+// 每种形状有精调的帽子基座高度和缩放比
+const HAT_FIT = [
+  { y: 1.42, s: 1.0 },    // 圆滚滚：球面顶部
+  { y: 1.56, s: 0.85 },   // 小方块：平面顶部（帽子缩小避免悬空）
+  { y: 1.06, s: 1.15 },   // 甜甜圈：环面顶部（帽子放大稳住）
+  { y: 1.38, s: 0.9 },    // 布丁：尖端顶部（帽子略缩小）
+];
+let currentShapeIdx = 0;
 function updateHatHeight() {
+  const fit = HAT_FIT[slimeShapeIdx] || null;
+  if (fit) {
+    hatGroup.position.y = fit.y;
+    hatGroup.scale.setScalar(fit.s);
+    return;
+  }
+  // Emoji 果冻 / 其他形状：用包围盒顶部
   slimeMesh.geometry.computeBoundingBox();
   const bb = slimeMesh.geometry.boundingBox;
-  hatGroup.position.y = slimeMesh.position.y + bb.max.y - 0.03;
+  const top = slimeMesh.position.y + bb.max.y;
+  hatGroup.position.y = Math.max(top - 0.02, 0.4);
+  hatGroup.scale.setScalar(1.0);
+}
+function updateHatY(y) {
+  hatGroup.position.y = y;
 }
 
 /* ================= 换色系统 ================= */
