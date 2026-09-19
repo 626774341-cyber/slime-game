@@ -157,7 +157,7 @@
   <div class="card" id="titleCard">
     <h1>🧺 史莱姆郊游 · 3D</h1>
     <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-    <span id="verChip">v1.3.2 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
+    <span id="verChip">v1.3.3 · 郊游日记</span><a id="homeLink" href="https://626774341-cyber.github.io/slime-game/">🏠 回箱庭</a>
   </div>
 
   <!-- 功能按钮 -->
@@ -239,15 +239,19 @@ setTimeout(function(){
 </script>
 
 <script type="module">
-// Three.js 双 CDN 兜底加载（jsdelivr 主源，unpkg 备用）
+// Three.js 三级加载：仓库自托管（最稳）→ jsdelivr → unpkg
 let THREE;
 try{
-  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js');
-}catch(e1){
+  THREE = await import('./three.module.js');
+}catch(e0){
   try{
-    THREE = await import('https://unpkg.com/three@0.170.0/build/three.module.js');
-  }catch(e2){
-    throw new Error('Three.js CDN 加载失败，请检查网络后刷新重试：'+e2.message);
+    THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js');
+  }catch(e1){
+    try{
+      THREE = await import('https://unpkg.com/three@0.170.0/build/three.module.js');
+    }catch(e2){
+      throw new Error('Three.js 加载失败，请检查网络后刷新重试：'+e2.message);
+    }
   }
 }
 
@@ -317,6 +321,11 @@ $('homeLink').addEventListener('click', e=>{
 ui.modalWrap.onclick = e=>{ if(e.target===ui.modalWrap) ui.modalWrap.classList.remove('show'); };
 
 $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
+  <h3>v1.3.3 加载彻底稳定</h3>
+  <ul>
+    <li>📦 Three.js 引擎打包进仓库自托管，不再依赖任何 CDN</li>
+    <li>🛟 加载顺序：仓库自带 → jsdelivr → unpkg 三级兜底</li>
+  </ul>
   <h3>v1.3.2 纪念碑谷式迷你箱庭</h3>
   <ul>
     <li>🧊 地图再缩小：活动半径 4.6，更精致的一块小天地</li>
