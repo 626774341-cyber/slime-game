@@ -44,25 +44,10 @@ function openNameWindow() {
   nameWin = new BrowserWindow({
     width: 300, height: 130, frame: false, transparent: true, resizable: false,
     minimizable: false, maximizable: false, show: false, skipTaskbar: true,
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
+    backgroundColor: '#00000000',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false }
   });
-  nameWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
-    '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
-    'body{margin:0;font-family:sans-serif;background:rgba(252,252,255,.98);border-radius:14px;' +
-    'display:flex;gap:8px;padding:16px;align-items:center;box-shadow:0 8px 30px rgba(50,80,120,.4)}' +
-    'input{flex:1;font-size:15px;padding:7px 9px;border-radius:8px;border:2px solid #bcd8ee;outline:none;color:#2c4a66}' +
-    'input:focus{border-color:#54c8ff}' +
-    'button{border:none;background:#54c8ff;color:#fff;border-radius:8px;padding:8px 14px;cursor:pointer}' +
-    '</style></head><body>' +
-    '<input id="n" maxlength="6" placeholder="给它取个名" value="' + cur + '">' +
-    '<button onclick="go()">好了</button>' +
-    '<script>const {ipcRenderer}=require("electron");' +
-    'document.getElementById("n").focus();document.getElementById("n").select();' +
-    'function go(){const v=document.getElementById("n").value.trim();' +
-    'if(v)ipcRenderer.send("pet:setname",v);window.close();}' +
-    'document.getElementById("n").addEventListener("keydown",e=>{if(e.key==="Enter")go();});' +
-    '</' + 'script></body></html>'
-  ));
+  nameWin.loadFile('name.html', { query: { n: cur } });
   nameWin.once('ready-to-show', () => nameWin.show());
   nameWin.on('closed', () => { nameWin = null; });
 }
@@ -134,7 +119,7 @@ function onWindowMove() {
   const now = Date.now();
   moveTimes.push(now);
   while (moveTimes.length && now - moveTimes[0] > 1000) moveTimes.shift();
-  if (moveTimes.length > 14 && now - lastShakeSent > 1600) {
+  if (moveTimes.length > 10 && now - lastShakeSent > 1200) {
     lastShakeSent = now;
     run('window.__petShake && window.__petShake()');
   }
@@ -158,30 +143,27 @@ function injectPetUI() {
     '  gap: 6px !important; opacity: .16; transition: opacity .25s ease; }',
     '#moodCard:hover { opacity: 1; }',
     '#moodBar { width: 90px !important; }',
-    '/* 右上角统一控制行：✕ 声音 昼夜 天气 爪印 */',
-    '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw {',
+    '/* 右上角统一控制行：⠿ ✕ 声音 昼夜 天气 爪印 */',
+    '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw, #dragMove {',
     '  position: fixed !important; top: 10px !important; right: auto !important; left: auto !important;',
     '  width: 34px !important; height: 34px !important; border-radius: 10px !important;',
     '  background: #ffffff !important; box-shadow: 0 3px 10px rgba(60,90,140,.30) !important;',
     '  display: flex !important; align-items: center; justify-content: center;',
     '  font-size: 16px !important; line-height: 1 !important; color: #2c4a66 !important;',
-    '  z-index: 32; -webkit-app-region: no-drag; animation: none !important; padding: 0 !important;',
+    '  z-index: 32; animation: none !important; padding: 0 !important;',
     '  transition: transform .15s ease, box-shadow .15s ease; cursor: pointer; user-select: none; }',
-    '#petClose:hover, #mute:hover, #nightBtn:hover, #weatherBtn:hover, #petPaw:hover {',
+    '#dragMove { -webkit-app-region: drag; cursor: move; }',
+    '#petClose:hover, #mute:hover, #nightBtn:hover, #weatherBtn:hover, #petPaw:hover, #dragMove:hover {',
     '  transform: scale(1.1); box-shadow: 0 5px 14px rgba(60,90,140,.4) !important; }',
     '#petPaw { right: 10px !important; font-size: 19px !important; }',
     '#weatherBtn { right: 50px !important; }',
     '#nightBtn { right: 90px !important; }',
     '#mute { right: 130px !important; }',
-    '#petClose { right: 170px !important; font-size: 15px !important; }',
-    '/* 顶部：拖拽条 + 拖拽手柄按钮 */',
+    '#dragMove { right: 170px !important; font-size: 13px !important; letter-spacing: 1px; }',
+    '#petClose { right: 210px !important; font-size: 15px !important; }',
+    '/* 顶部隐形拖拽条（整条都可拖） */',
     '#dragStrip { position: fixed; top: 0; left: 0; right: 0; height: 24px; z-index: 30;',
     '  -webkit-app-region: drag; cursor: move; }',
-    '#dragHandle { position: fixed; top: 5px; left: 50%; transform: translateX(-50%); z-index: 33;',
-    '  width: 64px; height: 15px; border-radius: 8px; background: rgba(255,255,255,.9);',
-    '  box-shadow: 0 2px 6px rgba(60,90,140,.3); -webkit-app-region: drag; cursor: move;',
-    '  display: flex; align-items: center; justify-content: center; color: #7a97b0;',
-    '  font-size: 9px; letter-spacing: 3px; user-select: none; }',
     '/* 互动抽屉：无面板底色 */',
     '#toolbar { flex-direction: row !important; flex-wrap: wrap !important; justify-content: flex-end !important;',
     '  left: auto !important; right: 10px !important; top: 52px !important; bottom: auto !important;',
@@ -267,8 +249,9 @@ function injectPetUI() {
     petToast._t = setTimeout(() => petToast.classList.remove('show'), 2200);
   }
   window.__petShake = () => {
-    shaking = true; shakeUntil = performance.now() + 1300;
+    shaking = true; shakeUntil = performance.now() + 1800;
     wake(); lastActivity = performance.now();
+    petSay('别摇啦别摇啦！晃晕了要生气的！');
   };
   window.addEventListener('pointerdown', () => {
     lastActivity = performance.now();
@@ -288,10 +271,17 @@ function injectPetUI() {
     nameTag.style.display = petName ? 'block' : 'none';
   };
 
-  // —— 逗猫棒：按住 Alt 甩鼠标，史莱姆追着光点跳 ——
-  let altHeld = false, altX = 0, altY = 0, lastChase = 0;
+  // —— 逗猫棒：抽屉里 🐱 开关（开启后甩鼠标，史莱姆追着光点跳）——
+  let catMode = false, altHeld = false, altX = 0, altY = 0, lastChase = 0;
   window.addEventListener('keydown', (e) => { if (e.key === 'Alt') { altHeld = true; wake(); } });
   window.addEventListener('keyup', (e) => { if (e.key === 'Alt') altHeld = false; });
+  function chaseTick(x, y) {
+    const now2 = performance.now();
+    if (now2 - lastChase <= 420) return;
+    lastChase = now2;
+    const g = pet.pickGround && pet.pickGround(x, y);
+    if (g && pet.slime.mode === 'free' && pet.slime.pos.y <= 0.05) pet.startHops({ x: g.x, z: g.z });
+  }
 
   // —— 摸头：按住史莱姆来回搓 → 爱心 + 果冻抖；摸太久会晕 ——
   let petting = false, strokeAccum = 0, petStart = 0, rustleCd = 0;
@@ -302,7 +292,8 @@ function injectPetUI() {
   window.addEventListener('pointermove', (e) => {
     lastActivity = performance.now();
     if (sleeping) wake();
-    if (altHeld) { altX = e.clientX; altY = e.clientY; }
+    altX = e.clientX; altY = e.clientY;
+    if ((catMode || altHeld) && !petting) chaseTick(e.clientX, e.clientY);
     if (!petting) return;
     const now2 = performance.now();
     strokeAccum += Math.hypot(e.movementX || 0, e.movementY || 0);
@@ -462,7 +453,7 @@ function injectPetUI() {
       }
     }
     // 逗猫棒光点
-    if (altHeld) {
+    if (catMode || altHeld) {
       ctx.fillStyle = 'rgba(255,236,150,.35)';
       ctx.beginPath(); ctx.arc(altX, altY, 13, 0, 6.283); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,190,.95)';
@@ -498,7 +489,7 @@ function injectPetUI() {
     if (sp.z > B - m) { const kk = (sp.z - (B - m)) / m; prx = -3.2 * kk; pty = 7 * kk; }
     else if (sp.z < -(B - m)) { const kk = (-(B - m) - sp.z) / m; prx = 3.2 * kk; pty = -7 * kk; }
     const cEl = document.getElementById('c');
-    if (shaking) cEl.style.transform = 'translate(' + (Math.random() * 14 - 7).toFixed(1) + 'px,' + (Math.random() * 14 - 7).toFixed(1) + 'px)';
+    if (shaking) cEl.style.transform = 'translate(' + (Math.random() * 26 - 13).toFixed(1) + 'px,' + (Math.random() * 22 - 11).toFixed(1) + 'px) rotateZ(' + (Math.random() * 4 - 2).toFixed(2) + 'deg)';
     else if (sleeping) cEl.style.transform = 'none';
     else if (prx || prz || ptx || pty) cEl.style.transform = 'translate(' + ptx.toFixed(1) + 'px,' + pty.toFixed(1) + 'px) rotateX(' + prx.toFixed(2) + 'deg) rotateZ(' + prz.toFixed(2) + 'deg)';
     else cEl.style.transform = 'none';
@@ -511,11 +502,11 @@ function injectPetUI() {
   strip.title = '按住这里可以拖动桌宠';
   document.body.appendChild(strip);
 
-  const dragHandle = document.createElement('div');
-  dragHandle.id = 'dragHandle';
-  dragHandle.textContent = '⠿⠿ 拖动';
-  dragHandle.title = '按住拖动整个桌宠';
-  document.body.appendChild(dragHandle);
+  const dragMove = document.createElement('div');
+  dragMove.id = 'dragMove';
+  dragMove.textContent = '⠿';
+  dragMove.title = '按住我，拖动整个桌宠';
+  document.body.appendChild(dragMove);
 
   const closeBtn = document.createElement('div');
   closeBtn.id = 'petClose';
@@ -534,8 +525,23 @@ function injectPetUI() {
   // 可见版本徽标：一眼确认运行的是哪个版本
   const ver = document.createElement('div');
   ver.id = 'petVer';
-  ver.textContent = '桌宠 v1.4.0';
+  ver.textContent = '桌宠 v1.5.0';
   document.body.appendChild(ver);
+
+  // —— 逗猫棒开关（放进互动抽屉第一个）——
+  const catBtn = document.createElement('button');
+  catBtn.className = 'tool';
+  catBtn.id = 'catTeaser';
+  catBtn.textContent = '🐱';
+  catBtn.title = '逗猫棒：开启后移动鼠标，史莱姆追着光点跳';
+  catBtn.addEventListener('click', () => {
+    catMode = !catMode;
+    catBtn.classList.toggle('active', catMode);
+    wake();
+    petSay(catMode ? '🐱 逗猫棒开启！甩鼠标逗它～' : '逗猫棒收起来啦');
+  });
+  const toolbarEl = document.getElementById('toolbar');
+  toolbarEl.insertBefore(catBtn, toolbarEl.firstChild);
 }
 
 function createWindow() {
