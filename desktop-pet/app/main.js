@@ -9,6 +9,12 @@ function injectPetUI() {
   st.textContent = [
     'html, body { background: transparent !important; }',
     '#title, #hints, #moodCard, #starHud, #photoBtn { display: none !important; }',
+    '/* 工具栏改为底部横排，避免与窗户边缘 / 其他 UI 重合 */',
+    '#toolbar { flex-direction: row !important; right: auto !important; left: 50% !important;',
+    '  transform: translateX(-50%) !important; bottom: 5px !important; gap: 5px !important; }',
+    '.tool { width: 40px !important; height: 40px !important; font-size: 20px !important; }',
+    '/* 右上角小按钮下移，避开顶部拖拽条 */',
+    '#mute, #nightBtn, #weatherBtn { top: 30px !important; }',
     '#dragStrip { position: fixed; top: 0; left: 0; right: 0; height: 26px; z-index: 30;',
     '  -webkit-app-region: drag; cursor: move; }',
     '#petClose { position: fixed; top: 3px; left: 10px; z-index: 31;',
