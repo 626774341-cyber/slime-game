@@ -583,7 +583,7 @@ function injectPetUI() {
     const total = baseTotal + sessionMs;
     const el = document.getElementById('petCompTime');
     if (el) el.textContent = fmtTotal(total);
-    companion.title = '本次陪伴 ' + fmtSession(sessionMs) + ' · 累计 ' + fmtTotal(total);
+
   }
   function saveCompanion() {
     const sessionMs = Date.now() - sessionStart;
@@ -656,8 +656,6 @@ function injectPetUI() {
     }
     el.textContent = '🏷️ ' + n;
   };
-  const savedName = (loadSettings().name || '');
-  if (savedName) setTimeout(() => window.__petSetName(savedName), 300);
 }
 
 function createWindow() {
