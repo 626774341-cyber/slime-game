@@ -1,0 +1,2874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>箱庭世界 · 3D 史莱姆</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    background: #bfe4f7;
+  }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; opacity: 0; transition: opacity 1.2s ease; }
+  #c.ready { opacity: 1; }
+  .card {
+    position: fixed; background: rgba(255,255,255,.72); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(60,90,140,.15); color: #2c4a66; z-index: 5;
+  }
+  #title { top: 18px; left: 18px; padding: 12px 18px; animation: drop .8s ease both; }
+  #title h1 { font-size: 20px; letter-spacing: 1px; }
+  #title p { font-size: 12px; opacity: .75; margin-top: 3px; }
+  #hints { bottom: 16px; left: 50%; transform: translateX(-50%); padding: 10px 12px;
+           display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 62vw;
+           animation: rise .8s .3s ease both; }
+  #hints span { font-size: 12px; white-space: nowrap; background: rgba(255,255,255,.7);
+                border-radius: 999px; padding: 5px 10px; }
+  .iconbtn { width: 44px; height: 44px; display: flex; align-items: center;
+          justify-content: center; font-size: 20px; cursor: pointer; user-select: none; }
+  #mute { top: 18px; right: 18px; animation: drop .8s .1s ease both; }
+  #nightBtn { top: 18px; right: 72px; animation: drop .8s .15s ease both; }
+  #weatherBtn { top: 18px; right: 126px; animation: drop .8s .2s ease both; }
+  #photoBtn { top: 18px; right: 180px; animation: drop .8s .25s ease both; }
+  .iconbtn:hover { background: rgba(255,255,255,.92); }
+  .card { transition: opacity .4s ease; }
+  /* 拍照模式：隐藏所有界面（相机按钮除外） */
+  body.photo .card:not(#photoBtn), body.photo #toast { opacity: 0; pointer-events: none; animation: none; }
+  /* 右侧工具栏 */
+  #toolbar { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column;
+             gap: 10px; z-index: 6; animation: riseUp .8s .4s ease both; }
+  .tool { position: static; width: 46px; height: 46px; font-size: 22px; border: none; cursor: pointer;
+          display: flex; align-items: center; justify-content: center; transition: background .2s ease; }
+  .tool.active { background: rgba(126,200,250,.95); box-shadow: 0 0 0 3px rgba(126,200,250,.35); }
+  .tool:hover { background: rgba(255,255,255,.92); }
+  .tool:active { transform: scale(.9); }
+  /* 调色面板 */
+  #palettePanel { position: fixed; right: 72px; bottom: 120px; padding: 10px; display: none;
+                  gap: 8px; z-index: 7; }
+  #palettePanel.open { display: flex; }
+  .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff;
+            cursor: pointer; box-shadow: 0 2px 6px rgba(60,90,140,.25); }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.rainbow { background: conic-gradient(#ff6b6b,#ffb56b,#ffe45e,#6bde7c,#5ec8ff,#b78aff,#ff6bd8,#ff6b6b); }
+  /* 变身面板：经典形状 + Emoji 果冻，一个面板全搞定 */
+  #shapePanel { position: fixed; right: 72px; bottom: 120px; padding: 12px; display: none;
+                flex-wrap: wrap; gap: 8px; z-index: 7; max-width: 312px; }
+  #shapePanel.open { display: flex; }
+  #shapePanel .sp-head { width: 100%; font-size: 11px; color: #5b7c99; padding: 2px 2px 0; }
+  .shapeTile { width: 60px; border: none; border-radius: 12px; cursor: pointer;
+               background: rgba(126,200,250,.16); padding: 8px 0 6px; text-align: center;
+               transition: background .15s; }
+  .shapeTile:hover { background: rgba(126,200,250,.5); }
+  .shapeTile:active { transform: scale(.92); }
+  .shapeTile .ic { font-size: 26px; display: block; }
+  .shapeTile .lb { font-size: 10px; color: #2c4a66; margin-top: 3px; display: block; }
+  /* 心情条 */
+  #moodCard { bottom: 16px; left: 18px; padding: 10px 14px; display: flex; align-items: center;
+              gap: 8px; animation: riseUp .8s .45s ease both; }
+  #moodFace { font-size: 18px; }
+  #moodBar { width: 110px; height: 10px; border-radius: 999px; background: rgba(120,150,180,.25);
+             overflow: hidden; }
+  #moodFill { height: 100%; width: 62%; border-radius: 999px; background: #5fd07a; transition: width .3s ease; }
+  #moodLabel { font-size: 12px; opacity: .8; }
+  /* 摘星挑战计分板 */
+  #starHud { top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 20px;
+             font-size: 15px; font-weight: 600; display: none; }
+  #starHud.show { display: block; }
+  /* 提示气泡 */
+  #toast { position: fixed; bottom: 86px; left: 50%; transform: translate(-50%, 8px);
+           background: rgba(35,58,82,.82); color: #fff; font-size: 13px; padding: 8px 18px;
+           border-radius: 999px; opacity: 0; transition: all .35s ease; pointer-events: none;
+           z-index: 8; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+             flex-direction: column; gap: 16px; background: #bfe4f7; z-index: 10;
+             transition: opacity .6s ease; color: #2c4a66; }
+  #loading .ball { width: 46px; height: 40px; border-radius: 50% 50% 45% 45%;
+             background: radial-gradient(circle at 32% 28%, #b8ecff, #3ec1ff 70%);
+             box-shadow: 0 6px 16px rgba(46,150,220,.35); animation: squish 1s ease-in-out infinite; }
+  #loading p { font-size: 14px; letter-spacing: 3px; }
+  #loading.hide { opacity: 0; pointer-events: none; }
+  @keyframes squish { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.15,.82); } }
+  @keyframes drop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+  @keyframes rise { from { opacity: 0; transform: translate(-50%,14px); } to { opacity: 1; transform: translate(-50%,0); } }
+  @keyframes riseUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="loading"><div class="ball"></div><p>箱庭世界生成中…</p></div>
+<canvas id="c"></canvas>
+
+<div id="title" class="card">
+  <h1>🫧 箱庭世界 · 3D 史莱姆</h1>
+  <p>Three.js 互动加强版 · 人机交互小组作业</p>
+  <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.7 · 点看更新日志</a></p>
+</div>
+<div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
+<div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
+<div id="nightBtn" class="card iconbtn" title="昼夜切换">🌙</div>
+<div id="mute" class="card iconbtn" title="切换音效">🔊</div>
+
+<div id="hints" class="card">
+  <span>🖐️ 拖动史莱姆</span>
+  <span>👆 点一下戳戳</span>
+  <span>🤚 长按抚摸</span>
+  <span>🎯 点地跳过去</span>
+  <span>⌨️ 空格大跳 · B 跳舞</span>
+  <span>🔄 拖空白转视角 · 🔍 缩放</span>
+</div>
+
+<div id="moodCard" class="card" title="史莱姆的心情">
+  <span id="moodFace">😀</span>
+  <div id="moodBar"><div id="moodFill"></div></div>
+  <span id="moodLabel">心情</span>
+</div>
+
+<div id="starHud" class="card">⭐ 0 / 5</div>
+
+<div id="toast"></div>
+
+<div id="palettePanel" class="card">
+  <div class="swatch" data-i="0" style="background:#54c8ff" title="天空蓝"></div>
+  <div class="swatch" data-i="1" style="background:#63e06b" title="抹茶绿"></div>
+  <div class="swatch" data-i="2" style="background:#ff9ed2" title="樱花粉"></div>
+  <div class="swatch" data-i="3" style="background:#b78aff" title="葡萄紫"></div>
+  <div class="swatch" data-i="4" style="background:#ffb05e" title="橘子橙"></div>
+  <div class="swatch" data-i="5" style="background:#ffe45e" title="柠檬黄"></div>
+  <div class="swatch rainbow" data-i="6" title="彩虹模式"></div>
+</div>
+
+<div id="shapePanel" class="card">
+  <div class="sp-head">经典形状</div>
+  <button class="shapeTile" data-shape="0"><span class="ic">⚪</span><span class="lb">圆滚滚</span></button>
+  <button class="shapeTile" data-shape="1"><span class="ic">🟨</span><span class="lb">小方块</span></button>
+  <button class="shapeTile" data-shape="2"><span class="ic">🍩</span><span class="lb">甜甜圈</span></button>
+  <button class="shapeTile" data-shape="3"><span class="ic">🍮</span><span class="lb">布丁</span></button>
+  <div class="sp-head">Emoji 果冻</div>
+  <button class="shapeTile" data-emoji="🐻"><span class="ic">🐻</span></button>
+  <button class="shapeTile" data-emoji="🐰"><span class="ic">🐰</span></button>
+  <button class="shapeTile" data-emoji="🍄"><span class="ic">🍄</span></button>
+  <button class="shapeTile" data-emoji="🐢"><span class="ic">🐢</span></button>
+  <button class="shapeTile" data-emoji="🥕"><span class="ic">🥕</span></button>
+  <button class="shapeTile" data-emoji="🧁"><span class="ic">🧁</span></button>
+  <button class="shapeTile" data-emoji="🦆"><span class="ic">🦆</span></button>
+  <button class="shapeTile" data-emoji="🌵"><span class="ic">🌵</span></button>
+</div>
+
+<div id="toolbar">
+  <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
+  <button class="card tool" id="shapeBtn" title="变身：经典形状 / Emoji 果冻">🧪</button>
+  <button class="card tool" id="plantBtn" title="种花模式：点击地面种花">🌱</button>
+  <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
+  <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
+  <button class="card tool" id="hatBtn" title="换帽子">🎩</button>
+  <button class="card tool" id="babyBtn" title="史莱姆宝宝（最多3只）">🥚</button>
+  <button class="card tool" id="ballBtn" title="玩具球：史莱姆会自己追着踢">🏀</button>
+  <button class="card tool" id="feedBtn" title="投喂苹果">🍎</button>
+  <button class="card tool" id="chiliBtn" title="投喂辣椒（后果自负）">🌶️</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ================= 小工具 ================= */
+const { clamp, lerp } = THREE.MathUtils;
+function lerpAngle(a, b, t) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  else if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+// 固定种子的伪随机数，保证每次打开场景布置一致
+function mulberry32(seed) {
+  let a = seed;
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rand = mulberry32(20260917);
+const GROUND_Y = 0.02;   // 草地表面高度
+const BOUND = 4.3;       // 史莱姆可活动边界
+const POND = { x: 2.3, z: -2.0, r: 1.15 }; // 池塘范围
+function inPond(x, z) {
+  const dx = x - POND.x, dz = z - POND.z;
+  return dx * dx + dz * dz < POND.r * POND.r;
+}
+
+/* ================= 渲染器 / 场景 / 相机 ================= */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = null;
+scene.fog = null;
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(7.5, 6.2, 11);
+
+// 环境反射：让半透明的果冻材质有高光层次
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
+scene.environmentIntensity = 0.55;
+pmrem.dispose();
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 0.7, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 4.5;
+controls.maxDistance = 20;
+controls.minPolarAngle = 0.18;
+controls.maxPolarAngle = 1.42;
+controls.enabled = false;
+
+/* ================= 灯光 ================= */
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.3);
+sun.position.set(6, 10, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
+sun.shadow.camera.top = 9;   sun.shadow.camera.bottom = -9;
+sun.shadow.camera.near = 2;  sun.shadow.camera.far = 30;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xa08a6a, 0.6);
+scene.add(hemi);
+// 月光（夜晚淡入）
+const moonLight = new THREE.DirectionalLight(0x9db8ff, 0);
+moonLight.position.set(-10, 12, -8);
+scene.add(moonLight);
+
+/* ================= 箱庭世界（微缩景观） ================= */
+const world = new THREE.Group();
+scene.add(world);
+
+const matWood  = new THREE.MeshStandardMaterial({ color: 0x9a6a45, roughness: 0.85 });
+const matGrass = new THREE.MeshStandardMaterial({ color: 0x82c95e, roughness: 0.95 });
+const matTrunk = new THREE.MeshStandardMaterial({ color: 0x8a5a3a, roughness: 0.9 });
+const matLeafA = new THREE.MeshStandardMaterial({ color: 0x5fb85a, roughness: 0.9 });
+const matLeafB = new THREE.MeshStandardMaterial({ color: 0x4da34f, roughness: 0.9 });
+const matLeafC = new THREE.MeshStandardMaterial({ color: 0x6fca66, roughness: 0.9 });
+const matRock  = new THREE.MeshStandardMaterial({ color: 0xb9b9c0, roughness: 0.9, flatShading: true });
+const matSand  = new THREE.MeshStandardMaterial({ color: 0xe6d29a, roughness: 1 });
+const matPond  = new THREE.MeshStandardMaterial({ color: 0x59c2e8, roughness: 0.12, metalness: 0.05 });
+const matCloud = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+
+// 木质底座 + 草地台面
+const baseBox = new THREE.Mesh(new THREE.BoxGeometry(10.5, 1.1, 10.5), matWood);
+baseBox.position.y = -0.57;
+baseBox.receiveShadow = true;
+world.add(baseBox);
+
+const grassTop = new THREE.Mesh(new THREE.BoxGeometry(10, 0.24, 10), matGrass);
+grassTop.position.y = -0.11;
+grassTop.receiveShadow = true;
+world.add(grassTop);
+
+// 小池塘（沙滩边 + 水面）
+const pondSand = new THREE.Mesh(new THREE.CircleGeometry(1.5, 40), matSand);
+pondSand.rotation.x = -Math.PI / 2;
+pondSand.position.set(POND.x, 0.015, POND.z);
+pondSand.receiveShadow = true;
+world.add(pondSand);
+const pond = new THREE.Mesh(new THREE.CircleGeometry(1.25, 40), matPond);
+pond.rotation.x = -Math.PI / 2;
+pond.position.set(POND.x, 0.022, POND.z);
+world.add(pond);
+
+// 一棵低多边形小树
+function makeTree(s = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.13 * s, 0.55 * s, 7), matTrunk);
+  trunk.position.y = 0.275 * s; trunk.castShadow = true; g.add(trunk);
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.62 * s, 0.85 * s, 8), matLeafA);
+  c1.position.y = 0.92 * s; c1.castShadow = true; g.add(c1);
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.45 * s, 0.7 * s, 8), matLeafB);
+  c2.position.y = 1.38 * s; c2.castShadow = true; g.add(c2);
+  const c3 = new THREE.Mesh(new THREE.ConeGeometry(0.28 * s, 0.5 * s, 8), matLeafC);
+  c3.position.y = 1.75 * s; c3.castShadow = true; g.add(c3);
+  return g;
+}
+[[-0.9, -4.0, 1.15], [3.9, -3.1, 0.95], [-4.1, 1.8, 1.0], [4.0, 3.2, 1.25], [-2.2, 4.1, 0.85]]
+  .forEach(([x, z, s]) => {
+    const t = makeTree(s);
+    t.position.set(x, 0.01, z);
+    t.rotation.y = rand() * Math.PI * 2;
+    world.add(t);
+  });
+
+// 石头
+function makeRock(r) {
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), matRock);
+  m.scale.y = 0.7;
+  m.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+[[-1.8, 3.6, 0.4], [1.4, 4.0, 0.28], [-4.2, -1.2, 0.35], [3.3, 1.3, 0.24],
+ [1.2, -1.1, 0.18], [3.4, -2.7, 0.22], [1.9, -3.0, 0.15]]
+  .forEach(([x, z, r]) => { const m = makeRock(r); m.position.set(x, 0.03, z); world.add(m); });
+
+// 小花
+const flowerColors = [0xff8fb3, 0xffd45e, 0xffffff, 0xc39bff];
+function makeFlower(color) {
+  const g = new THREE.Group();
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.28, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4f9e46, roughness: 1 }));
+  stem.position.y = 0.14; g.add(stem);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+  head.position.y = 0.3; head.castShadow = true; g.add(head);
+  return g;
+}
+const FLOWER_SPOTS = [[-2.5, 0.8], [1.8, 1.6], [-0.8, 2.8], [3.5, 0.2], [-3.0, 3.2], [0.8, -3.7], [-4.3, -2.6], [2.8, 3.9]];
+FLOWER_SPOTS.forEach(([x, z], i) => {
+  const f = makeFlower(flowerColors[i % flowerColors.length]);
+  f.position.set(x, 0.01, z);
+  world.add(f);
+});
+
+// 草丛
+const matTuft = new THREE.MeshStandardMaterial({ color: 0x5aa84c, roughness: 1 });
+for (let i = 0; i < 24; i++) {
+  let x, z, ok = false;
+  while (!ok) {
+    x = (rand() * 2 - 1) * 4.6; z = (rand() * 2 - 1) * 4.6;
+    ok = Math.hypot(x, z) > 1.3 && Math.hypot(x - POND.x, z - POND.z) > 1.75;
+  }
+  const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.2, 5), matTuft);
+  tuft.position.set(x, 0.1, z);
+  tuft.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI * 2, (rand() - 0.5) * 0.5);
+  world.add(tuft);
+}
+
+// 石板小路
+const matStone = new THREE.MeshStandardMaterial({ color: 0xcfcabc, roughness: 0.9 });
+[[-1.1, -1.1], [-1.75, -1.75], [-2.4, -2.4]].forEach(([x, z]) => {
+  const s = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.06, 7), matStone);
+  s.position.set(x, 0.04, z);
+  s.rotation.y = rand() * Math.PI;
+  s.receiveShadow = true;
+  world.add(s);
+});
+
+// 蹦床蘑菇：踩上去会被弹飞
+const MUSH = { x: -1.6, z: 1.7 };
+{
+  const g = new THREE.Group();
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.32, 12),
+    new THREE.MeshStandardMaterial({ color: 0xf5ead8, roughness: 0.9 }));
+  stem.position.y = 0.16;
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 14),
+    new THREE.MeshStandardMaterial({ color: 0xe05548, roughness: 0.7 }));
+  cap.scale.set(1, 0.55, 1);
+  cap.position.y = 0.44;
+  cap.castShadow = true;
+  g.add(stem, cap);
+  const dotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+  [[-0.24, 0.6, 0.12, 0.07], [0.2, 0.58, -0.14, 0.06], [0.02, 0.64, 0.3, 0.055], [-0.12, 0.56, -0.32, 0.05]]
+    .forEach(([x, y, z, r]) => {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), dotMat);
+      dot.position.set(x, y, z);
+      g.add(dot);
+    });
+  g.position.set(MUSH.x, 0.01, MUSH.z);
+  world.add(g);
+}
+
+// 小木屋（窗户材质提出来，夜晚会亮灯）
+const winMat = new THREE.MeshStandardMaterial({
+  color: 0xa8d8ef, roughness: 0.3,
+  emissive: 0xffd98a, emissiveIntensity: 0
+});
+function makeHouse() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.25, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xf7ead2, roughness: 0.9 }));
+  body.position.y = 0.625; body.castShadow = true; body.receiveShadow = true; g.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.05, 4),
+    new THREE.MeshStandardMaterial({ color: 0xd96f4e, roughness: 0.8, flatShading: true }));
+  roof.position.y = 1.78; roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true; g.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.6, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x7c5233, roughness: 0.9 }));
+  door.position.set(0, 0.32, 0.76); g.add(door);
+  [[-0.5, 0.8], [0.5, 0.8]].forEach(([x, y]) => {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.06), winMat);
+    w.position.set(x, y, 0.76); g.add(w);
+  });
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.45, 0.18),
+    new THREE.MeshStandardMaterial({ color: 0xb5563f, roughness: 0.9 }));
+  chimney.position.set(0.45, 1.95, -0.25); chimney.castShadow = true; g.add(chimney);
+  return g;
+}
+const HOUSE_POS = { x: -3.3, z: -3.3 };
+const house = makeHouse();
+house.position.set(HOUSE_POS.x, 0.01, HOUSE_POS.z);
+house.rotation.y = Math.PI / 4;
+world.add(house);
+const houseLight = new THREE.PointLight(0xffc766, 0, 7);
+houseLight.position.set(HOUSE_POS.x, 1.4, HOUSE_POS.z);
+scene.add(houseLight);
+
+/* ================= 障碍物禁区（防穿模 / 防卡模型） ================= */
+// 圆形禁区：树冠、小屋。史莱姆 / 宝宝 / 球 / 掉落物都会被推出禁区，
+// 跳跃目标落在禁区内也会自动重定向到最近的合法点
+const OBSTACLES = [
+  { x: -0.9, z: -4.0, r: 0.60 },   // 树 1
+  { x: 3.9,  z: -3.1, r: 0.52 },   // 树 2
+  { x: -4.1, z: 1.8,  r: 0.52 },   // 树 3
+  { x: 4.0,  z: 3.2,  r: 0.62 },   // 树 4
+  { x: -2.2, z: 4.1,  r: 0.46 },   // 树 5
+  { x: HOUSE_POS.x, z: HOUSE_POS.z, r: 1.12 }, // 小屋
+];
+// 把点推出所有禁区（p: {x,z} 形式的向量对象），返回是否发生推挤
+function pushOutOfObstacles(p, radius) {
+  let pushed = false;
+  for (const o of OBSTACLES) {
+    const dx = p.x - o.x, dz = p.z - o.z;
+    const d = Math.hypot(dx, dz) || 1e-4;
+    const min = o.r + radius;
+    if (d < min) {
+      p.x = o.x + dx / d * min;
+      p.z = o.z + dz / d * min;
+      pushed = true;
+    }
+  }
+  return pushed;
+}
+// 求某点最近的禁区外合法点（最多迭代 3 次处理禁区相邻的情况）
+function nearestOutsidePoint(x, z, radius) {
+  let px = x, pz = z;
+  for (let k = 0; k < 3; k++) {
+    let moved = false;
+    for (const o of OBSTACLES) {
+      const dx = px - o.x, dz = pz - o.z;
+      const d = Math.hypot(dx, dz) || 1e-4;
+      const min = o.r + radius;
+      if (d < min) { px = o.x + dx / d * min; pz = o.z + dz / d * min; moved = true; }
+    }
+    if (!moved) break;
+  }
+  return { x: clamp(px, -BOUND + 0.3, BOUND - 0.3), z: clamp(pz, -BOUND + 0.3, BOUND - 0.3) };
+}
+// 线段 (x,z)→(tx,tz) 前进方向上第一个挡路的障碍物：
+// 返回 { t: 撞点距离, o: 障碍物 }，畅通返回 null
+function firstBlockingObstacle(x, z, tx, tz, radius) {
+  const dx = tx - x, dz = tz - z;
+  const L = Math.hypot(dx, dz) || 1e-6;
+  const ux = dx / L, uz = dz / L;
+  let best = null;
+  for (const o of OBSTACLES) {
+    const min = o.r + radius;
+    const fx = x - o.x, fz = z - o.z;
+    const c = fx * fx + fz * fz - min * min;
+    if (c < 0) return { t: 0, o };            // 起点在禁区内
+    const b = fx * ux + fz * uz;
+    if (b >= 0) continue;                     // 障碍物在身后，撞不上
+    const D = b * b - c;
+    if (D < 0) continue;                      // 射线擦不到
+    const t = -b - Math.sqrt(D);
+    if (t >= 0 && t <= L && (!best || t < best.t)) best = { t, o };
+  }
+  return best;
+}
+function segmentToObstacle(x, z, tx, tz, radius) {
+  const blk = firstBlockingObstacle(x, z, tx, tz, radius);
+  return blk ? blk.t : -1;
+}
+// 找一个"切线绕行点"：从挡路的障碍物旁边绕过去，而不是傻停在树边。
+// 优先绕目标所在的那一侧；绕行点必须一路畅通、且比当前位置更接近目标（防止绕反 / 打转）
+function pickWaypoint(p, target) {
+  const blk = firstBlockingObstacle(p.x, p.z, target.x, target.z, 0.55);
+  if (!blk) return null;
+  const o = blk.o;
+  const R = o.r + 0.66;                        // 绕行圈半径 = 禁区 + 史莱姆体积 + 余量
+  const px = p.x - o.x, pz = p.z - o.z;
+  const d = Math.hypot(px, pz) || 1e-4;
+  // 目标在 (圆心→p) 连线的哪一侧，就沿哪一侧绕（cross > 0 = 左侧）
+  const side = Math.sign(px * (target.z - p.z) - pz * (target.x - p.x)) || 1;
+  const alpha = Math.atan2(pz, px);
+  const beta = Math.acos(Math.min(1, R / d));  // 从 p 看绕行圈的两条切线夹角
+  let w;
+  if (beta < 0.5) {
+    // 已经几乎贴着绕行圈：沿切线方向走一小段弦绕过去
+    w = { x: p.x + (-pz / d * side) * 0.9, z: p.z + (px / d * side) * 0.9 };
+  } else {
+    const a = side > 0 ? alpha + beta : alpha - beta;
+    w = { x: o.x + Math.cos(a) * R, z: o.z + Math.sin(a) * R };
+  }
+  if (segmentToObstacle(p.x, p.z, w.x, w.z, 0.55) < 0 &&
+      Math.hypot(w.x - target.x, w.z - target.z) < Math.hypot(p.x - target.x, p.z - target.z)) return w;
+  return null;
+}
+
+// 天上的云（缓慢漂移）
+const clouds = [];
+function makeCloud() {
+  const g = new THREE.Group();
+  [[0, 0, 0, 0.55], [-0.62, -0.08, 0.12, 0.4], [0.6, -0.05, -0.1, 0.45], [0.15, 0.18, -0.15, 0.32]]
+    .forEach(([x, y, z, r]) => {
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), matCloud);
+      p.position.set(x, y, z); p.scale.y = 0.75;
+      g.add(p);
+    });
+  return g;
+}
+[[-7, 6.8, -7, 0.25], [6, 7.6, -6, 0.18], [1, 6.2, 8, 0.22]].forEach(([x, y, z, v]) => {
+  const c = makeCloud();
+  c.position.set(x, y, z);
+  c.userData.v = v;
+  clouds.push(c);
+  scene.add(c);
+});
+
+// 夜空：星星 + 月亮
+const starsMat = new THREE.PointsMaterial({
+  color: 0xffffff, size: 0.55, transparent: true, opacity: 0, fog: false
+});
+{
+  const pts = [];
+  for (let i = 0; i < 220; i++) {
+    const th = rand() * Math.PI * 2;
+    const ph = 0.06 + rand() * 0.42 * Math.PI;
+    const r = 55;
+    pts.push(r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.Points(g, starsMat));
+}
+const moonMat = new THREE.MeshBasicMaterial({ color: 0xfff3cf, transparent: true, opacity: 0, fog: false });
+const moon = new THREE.Mesh(new THREE.SphereGeometry(1.8, 24, 18), moonMat);
+moon.position.set(-15, 13, -24);
+scene.add(moon);
+
+// 萤火虫（夜晚出现）
+const fireflies = [];
+for (let i = 0; i < 14; i++) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6),
+    new THREE.MeshBasicMaterial({
+      color: 0xd6ff8f, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+  const a = rand() * Math.PI * 2, r = 0.8 + rand() * 3.2;
+  fireflies.push({
+    mesh,
+    cx: Math.cos(a) * r, cz: Math.sin(a) * r,
+    r: 0.5 + rand() * 0.7, h: 0.35 + rand() * 0.7,
+    s1: 0.2 + rand() * 0.3, s2: 0.16 + rand() * 0.3,
+    ph1: rand() * 10, ph2: rand() * 10
+  });
+  scene.add(mesh);
+}
+
+// 蝴蝶（点击会吓飞）
+const butterflies = [];
+function makeButterfly(colorHex, cx, cz) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+  const wingG = new THREE.PlaneGeometry(0.2, 0.13);
+  const lp = new THREE.Group(), rp = new THREE.Group();
+  const lm = new THREE.Mesh(wingG, mat); lm.rotation.x = -Math.PI / 2; lm.position.x = -0.11; lp.add(lm);
+  const rm = new THREE.Mesh(wingG, mat); rm.rotation.x = -Math.PI / 2; rm.position.x = 0.11; rp.add(rm);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.015, 0.1, 4, 6),
+    new THREE.MeshBasicMaterial({ color: 0x3a3a48 }));
+  body.rotation.x = Math.PI / 2;
+  g.add(lp, rp, body);
+  g.position.set(cx, 0.8, cz);
+  scene.add(g);
+  butterflies.push({
+    g, lp, rp, center: new THREE.Vector3(cx, 0, cz),
+    phase: rand() * 10, speed: 0.6 + rand() * 0.5,
+    dartT: 0, dartDir: new THREE.Vector3(), px: cx, pz: cz
+  });
+}
+makeButterfly(0xff9ed2, FLOWER_SPOTS[0][0], FLOWER_SPOTS[0][1]);
+makeButterfly(0x9be8ff, FLOWER_SPOTS[1][0], FLOWER_SPOTS[1][1]);
+makeButterfly(0xffd45e, FLOWER_SPOTS[2][0], FLOWER_SPOTS[2][1]);
+
+/* ================= 天气系统（晴 / 雨 / 雪） ================= */
+const weather = { mode: 0, rainAmt: 0, snowAmt: 0, rippleT: 0 };
+const RAIN_N = 240;
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainDrops = [];
+for (let i = 0; i < RAIN_N; i++) {
+  rainDrops.push({ x: (Math.random() * 2 - 1) * 5, y: Math.random() * 8, z: (Math.random() * 2 - 1) * 5 });
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.LineBasicMaterial({ color: 0xa8cfee, transparent: true, opacity: 0 });
+const rainLines = new THREE.LineSegments(rainGeo, rainMat);
+rainLines.frustumCulled = false;
+scene.add(rainLines);
+
+const SNOW_N = 240;
+const snowPos = new Float32Array(SNOW_N * 3);
+const snowFlakes = [];
+for (let i = 0; i < SNOW_N; i++) {
+  snowFlakes.push({ x: (Math.random() * 2 - 1) * 5, y: Math.random() * 8, z: (Math.random() * 2 - 1) * 5, ph: Math.random() * 10 });
+}
+const snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0, depthWrite: false });
+const snowPoints = new THREE.Points(snowGeo, snowMat);
+snowPoints.frustumCulled = false;
+scene.add(snowPoints);
+
+function updateWeatherFx(dt, t) {
+  weather.rainAmt += ((weather.mode === 1 ? 1 : 0) - weather.rainAmt) * Math.min(1, dt * 1.2);
+  weather.snowAmt += ((weather.mode === 2 ? 1 : 0) - weather.snowAmt) * Math.min(1, dt * 1.2);
+  const dn = dnState.v;
+  if (weather.rainAmt > 0.01) {
+    for (let i = 0; i < RAIN_N; i++) {
+      const d = rainDrops[i];
+      d.y -= 13 * dt;
+      if (d.y < 0) { d.y = 6 + Math.random() * 2.5; d.x = (Math.random() * 2 - 1) * 5; d.z = (Math.random() * 2 - 1) * 5; }
+      const o = i * 6;
+      rainPos[o] = d.x; rainPos[o + 1] = d.y; rainPos[o + 2] = d.z;
+      rainPos[o + 3] = d.x; rainPos[o + 4] = d.y - 0.26; rainPos[o + 5] = d.z;
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+  }
+  rainMat.opacity = weather.rainAmt * (0.3 + 0.15 * dn);
+  if (weather.snowAmt > 0.01) {
+    for (let i = 0; i < SNOW_N; i++) {
+      const f = snowFlakes[i];
+      f.y -= 0.9 * dt;
+      f.x += Math.sin(t * 0.8 + f.ph) * 0.18 * dt;
+      if (f.y < 0) { f.y = 6 + Math.random() * 2.5; f.x = (Math.random() * 2 - 1) * 5; f.z = (Math.random() * 2 - 1) * 5; }
+      const o = i * 3;
+      snowPos[o] = f.x; snowPos[o + 1] = f.y; snowPos[o + 2] = f.z;
+    }
+    snowGeo.attributes.position.needsUpdate = true;
+  }
+  snowMat.opacity = weather.snowAmt * 0.9;
+  // 雨点落地涟漪
+  weather.rippleT -= dt;
+  if (weather.rainAmt > 0.6 && weather.rippleT <= 0) {
+    weather.rippleT = 0.12;
+    spawnRipple((Math.random() * 2 - 1) * 4.4, (Math.random() * 2 - 1) * 4.4, 0.2);
+  }
+  // 云变暗 + 雨声（静音时不响）
+  const cl = 1 - 0.4 * weather.rainAmt - 0.12 * weather.snowAmt;
+  matCloud.color.setRGB(cl, cl, Math.min(1, cl + 0.03));
+  if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
+}
+
+/* ================= 史莱姆本体 ================= */
+// 1) 果冻身体：球体压平底 + 顶点级弹簧抖动
+const slimeGeo = new THREE.SphereGeometry(0.9, 40, 28);
+{
+  const p = slimeGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    if (y < -0.55) p.setY(i, -0.55 + (y + 0.55) * 0.35); // 底部压平，方便“坐”在地上
+  }
+  slimeGeo.deleteAttribute('uv');       // 不需要贴图，删掉后才能焊接经线接缝
+  slimeGeo.computeVertexNormals();
+}
+const slimeGeoMerged = mergeVertices(slimeGeo, 1e-4);
+slimeGeoMerged.computeVertexNormals();
+slimeGeoMerged.computeBoundingSphere();
+let basePos = Float32Array.from(slimeGeoMerged.attributes.position.array);
+let baseNor = Float32Array.from(slimeGeoMerged.attributes.normal.array);
+
+const slimeMat = new THREE.MeshPhysicalMaterial({
+  color: 0x54c8ff,
+  metalness: 0,
+  roughness: 0.06,
+  transmission: 0.72,       // 折射透光 → 果冻感
+  thickness: 1.4,
+  ior: 1.35,
+  attenuationColor: new THREE.Color(0x1e90e0),
+  attenuationDistance: 1.6,
+  clearcoat: 0.8,
+  clearcoatRoughness: 0.15,
+  transparent: true,
+});
+const slimeMesh = new THREE.Mesh(slimeGeoMerged, slimeMat);
+slimeMesh.position.y = 0.68; // 让底部刚好贴地（压平后最低点约 -0.67）
+slimeMesh.castShadow = true;
+
+const slimeGroup = new THREE.Group();
+slimeGroup.add(slimeMesh);
+scene.add(slimeGroup);
+
+/* ================= 表情：眼睛（会看鼠标、会眨眼）+ 嘴巴 + 腮红 ================= */
+const matEyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+const matPupil    = new THREE.MeshStandardMaterial({ color: 0x1d2430, roughness: 0.3 });
+const matMouth    = new THREE.MeshStandardMaterial({ color: 0x2b2b33, roughness: 0.35 });
+const matCheek    = new THREE.MeshStandardMaterial({ color: 0xff9ecb, roughness: 0.9, transparent: true, opacity: 0.65 });
+
+function makeEye(sign) {
+  const center = new THREE.Vector3(sign * 0.30, 0.60, 0.60).normalize().multiplyScalar(1.0);
+  const g = new THREE.Group();
+  g.position.copy(center);
+  const white = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 14), matEyeWhite);
+  g.add(white);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 10), matPupil);
+  g.add(pupil);
+  // 眼睛局部坐标系（法线 / 切线），瞳孔沿切面移动
+  const n = center.clone().normalize();
+  const right = new THREE.Vector3(0, 1, 0).cross(n).normalize();
+  const up = n.clone().cross(right).normalize();
+  slimeGroup.add(g);
+  return { group: g, pupil, n, right, up, base: center };
+}
+const eyeL = makeEye(-1);
+const eyeR = makeEye(1);
+
+// 开心眯眯眼（∩ 形弧线，抚摸 / 心情好时替换圆眼睛）
+function makeHappyArc() {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.021, 8, 20, Math.PI * 0.9), matMouth);
+  m.position.copy(new THREE.Vector3(0, 0.60, 0.60).normalize().multiplyScalar(0.99));
+  m.position.x = 0; // 位置在加入时逐个设置
+  m.rotation.set(-0.3, 0, Math.PI * 0.05);
+  m.visible = false;
+  slimeGroup.add(m);
+  return m;
+}
+const arcL = makeHappyArc();
+const arcR = makeHappyArc();
+arcL.position.set(-0.30, 0.62, 0.74);
+arcR.position.set(0.30, 0.62, 0.74);
+
+const smile = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.024, 8, 24, Math.PI * 0.85), matMouth);
+smile.position.set(0, 0.40, 0.82);
+smile.rotation.set(-0.45, 0, Math.PI); // 弧形开口朝上 = 微笑（难过时翻转为 0 = ∩ 苦瓜脸）
+slimeGroup.add(smile);
+const mouthO = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.026, 8, 24), matMouth);
+mouthO.position.set(0, 0.38, 0.83);
+mouthO.rotation.x = -0.45;
+mouthO.visible = false;
+slimeGroup.add(mouthO);
+
+const cheeks = [];
+[-1, 1].forEach(sign => {
+  const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.07, 16), matCheek);
+  const p = new THREE.Vector3(sign * 0.47, 0.42, 0.63).normalize();
+  cheek.position.copy(p.multiplyScalar(0.985));
+  cheek.lookAt(cheek.position.clone().multiplyScalar(2));
+  slimeGroup.add(cheek);
+  cheeks.push(cheek);
+});
+
+/* ================= 帽子系统 ================= */
+const hatGroup = new THREE.Group();
+hatGroup.position.y = 1.42;
+slimeGroup.add(hatGroup);
+const HAT_NAMES = ['派对帽', '黄金皇冠', '贝雷帽', '绅士礼帽'];
+const hats = [];
+{ // 派对帽
+  const g = new THREE.Group();
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 20),
+    new THREE.MeshStandardMaterial({ color: 0xff6b9d, roughness: 0.6 }));
+  cone.position.y = 0.3; cone.castShadow = true;
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffe45e, roughness: 0.5 }));
+  pom.position.y = 0.62;
+  g.add(cone, pom);
+  hats.push(g);
+}
+{ // 皇冠
+  const g = new THREE.Group();
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffce45, metalness: 0.75, roughness: 0.28 });
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.27, 0.16, 14), gold);
+  ring.position.y = 0.08; g.add(ring);
+  for (let i = 0; i < 6; i++) {
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 8), gold);
+    const a = i / 6 * Math.PI * 2;
+    sp.position.set(Math.cos(a) * 0.24, 0.22, Math.sin(a) * 0.24);
+    g.add(sp);
+  }
+  const jewel = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xff4d6d, roughness: 0.2, metalness: 0.3 }));
+  jewel.position.set(0, 0.1, 0.26);
+  g.add(jewel);
+  hats.push(g);
+}
+{ // 贝雷帽
+  const g = new THREE.Group();
+  const red = new THREE.MeshStandardMaterial({ color: 0xe0463f, roughness: 0.85 });
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 12), red);
+  top.scale.y = 0.45; top.position.y = 0.1; top.castShadow = true;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.08, 6), red);
+  stem.position.y = 0.24;
+  g.add(top, stem);
+  hats.push(g);
+}
+{ // 绅士礼帽
+  const g = new THREE.Group();
+  const blk = new THREE.MeshStandardMaterial({ color: 0x2a2a34, roughness: 0.55 });
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.035, 18), blk);
+  brim.position.y = 0.017; brim.castShadow = true;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.23, 0.34, 18), blk);
+  body.position.y = 0.2;
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.06, 18),
+    new THREE.MeshStandardMaterial({ color: 0xd8455e, roughness: 0.5 }));
+  band.position.y = 0.07;
+  g.add(brim, body, band);
+  hats.push(g);
+}
+hats.forEach(h => { h.visible = false; hatGroup.add(h); });
+let hatIdx = -1;
+function cycleHat() {
+  ensureAudio();
+  hatIdx = (hatIdx + 1) % (hats.length + 1);
+  hats.forEach((h, i) => { h.visible = (i === hatIdx); });
+  toast(hatIdx < 0 ? '摘掉了帽子' : '戴上' + HAT_NAMES[hatIdx] + '！');
+  blip(500, hatIdx < 0 ? 260 : 800, 0.1, 0.09);
+}
+
+/* ================= 换色系统 ================= */
+const SLIME_COLORS = [
+  { n: '天空蓝', c: 0x54c8ff, a: 0x1e90e0 },
+  { n: '抹茶绿', c: 0x63e06b, a: 0x2aa84a },
+  { n: '樱花粉', c: 0xff9ed2, a: 0xe05a9e },
+  { n: '葡萄紫', c: 0xb78aff, a: 0x7a4fd0 },
+  { n: '橘子橙', c: 0xffb05e, a: 0xe08030 },
+  { n: '柠檬黄', c: 0xffe45e, a: 0xd8ae2e },
+  { n: '彩虹模式🌈', rainbow: true },
+];
+let slimeRainbow = false;
+function setSlimeColor(i) {
+  ensureAudio();
+  const col = SLIME_COLORS[i];
+  slimeRainbow = !!col.rainbow;
+  if (!slimeRainbow) {
+    slimeMat.color.setHex(col.c);
+    slimeMat.attenuationColor.setHex(col.a);
+  }
+  toast('变成了' + col.n);
+  achInc('color5', 1);
+  blip(420, 900, 0.12, 0.1);
+  document.getElementById('palettePanel').classList.remove('open');
+}
+document.querySelectorAll('.swatch').forEach(s => {
+  s.addEventListener('click', () => setSlimeColor(+s.dataset.i));
+});
+
+/* ================= 特效粒子池（通用漂浮物） ================= */
+function makePool(n, factory) {
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    const it = factory(i);
+    it.mesh.visible = false;
+    scene.add(it.mesh);
+    arr.push(it);
+  }
+  return arr;
+}
+function poolGet(pool) {
+  for (const it of pool) if (!it.mesh.visible) return it;
+  return null;
+}
+function updateFloatPool(pool, dt) {
+  for (const it of pool) {
+    if (!it.mesh.visible) continue;
+    it.life += dt / it.dur;
+    if (it.life >= 1) { it.mesh.visible = false; continue; }
+    it.vel.y -= it.grav * dt;
+    it.mesh.position.addScaledVector(it.vel, dt);
+    if (it.spin) {
+      it.mesh.rotation.x += it.spin * dt;
+      it.mesh.rotation.y += it.spin * 0.6 * dt;
+    }
+    const k = it.grow ? (0.55 + it.life * 0.75) : Math.max(0.05, 1 - it.life);
+    it.mesh.scale.setScalar(it.baseS * k);
+    if (it.mesh.material) it.mesh.material.opacity = 1 - it.life;
+  }
+}
+
+// 碎屑 / 水花 / 星星（四面体）
+const debrisPool = makePool(24, () => ({
+  mesh: new THREE.Mesh(new THREE.TetrahedronGeometry(0.06),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true })),
+  vel: new THREE.Vector3(), life: 0, dur: 0.75, grav: 5, spin: 6, baseS: 1
+}));
+function spawnDebris(pos, n, colors, grav = 5, spread = 1.6, up = 1.6) {
+  for (let i = 0; i < n; i++) {
+    const it = poolGet(debrisPool);
+    if (!it) return;
+    it.mesh.visible = true;
+    it.mesh.material.color.setHex(colors[i % colors.length]);
+    it.mesh.position.set(pos.x + (Math.random() - 0.5) * 0.5, pos.y, pos.z + (Math.random() - 0.5) * 0.5);
+    const a = Math.random() * Math.PI * 2;
+    it.vel.set(Math.cos(a) * (1 + Math.random() * spread), up + Math.random() * 1.4, Math.sin(a) * (1 + Math.random() * spread));
+    it.life = 0; it.grav = grav;
+  }
+}
+const SPARKLE_COLORS = [0xfff4b8, 0xffffff, 0x9be8ff];
+function spawnSparkles(n = 7) {
+  spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.0, slime.pos.z), n, SPARKLE_COLORS, 5);
+}
+
+// 爱心（挤出几何体）
+const heartGeo = (() => {
+  const s = new THREE.Shape();
+  s.moveTo(0.25, 0.25);
+  s.bezierCurveTo(0.25, 0.25, 0.2, 0, 0, 0);
+  s.bezierCurveTo(-0.3, 0, -0.3, 0.35, -0.3, 0.35);
+  s.bezierCurveTo(-0.3, 0.55, -0.1, 0.77, 0.25, 0.95);
+  s.bezierCurveTo(0.6, 0.77, 0.8, 0.55, 0.8, 0.35);
+  s.bezierCurveTo(0.8, 0.35, 0.8, 0, 0.5, 0);
+  s.bezierCurveTo(0.35, 0, 0.25, 0.25, 0.25, 0.25);
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.18, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.04, bevelSegments: 2 });
+  g.rotateZ(Math.PI);
+  g.center();
+  g.scale(0.4, 0.4, 0.4);
+  return g;
+})();
+const HEART_COLORS = [0xff6b9d, 0xff8fb0, 0xff4d7d];
+const heartPool = makePool(14, i => ({
+  mesh: new THREE.Mesh(heartGeo, new THREE.MeshBasicMaterial({ color: HEART_COLORS[i % 3], transparent: true })),
+  vel: new THREE.Vector3(), life: 0, dur: 1.15, grav: 0, spin: 0, baseS: 0.9
+}));
+function spawnHeart(pos) {
+  const it = poolGet(heartPool);
+  if (!it) return;
+  it.mesh.visible = true;
+  it.mesh.material.color.setHex(HEART_COLORS[Math.floor(Math.random() * 3)]);
+  it.mesh.position.copy(pos);
+  it.mesh.lookAt(camera.position);
+  it.vel.set(0, 0.85 + Math.random() * 0.35, 0);
+  it.life = 0;
+  it.baseS = 0.8 + Math.random() * 0.35;
+}
+
+// 音符 / Zzz（Canvas 精灵）
+function makeTextSprite(text, color, size = 90) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.font = size + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.fillText(text, 64, 68);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  return sp;
+}
+const noteGlyphs = [['♪', '#ffd45e'], ['♫', '#ff9ed2'], ['♪', '#9be8ff'], ['♫', '#b8ff9e']];
+const notePool = makePool(10, i => {
+  const gl = noteGlyphs[i % 4];
+  return {
+    mesh: makeTextSprite(gl[0], gl[1]),
+    vel: new THREE.Vector3(), life: 0, dur: 1.3, grav: 0, spin: 0, baseS: 0.42
+  };
+});
+function spawnNote() {
+  const it = poolGet(notePool);
+  if (!it) return;
+  it.mesh.visible = true;
+  it.mesh.position.set(slime.pos.x + (Math.random() - 0.5) * 0.7, slime.pos.y + 1.5, slime.pos.z + (Math.random() - 0.5) * 0.5);
+  it.vel.set((Math.random() - 0.5) * 0.4, 0.75, 0);
+  it.life = 0;
+}
+const zzzPool = makePool(3, () => ({
+  mesh: makeTextSprite('Z', '#cfe0ff', 110),
+  vel: new THREE.Vector3(), life: 0, dur: 2.4, grav: 0, spin: 0, baseS: 0.5, grow: true
+}));
+function spawnZ() {
+  const it = poolGet(zzzPool);
+  if (!it) return;
+  it.mesh.visible = true;
+  it.mesh.position.set(slime.pos.x + 0.45, slime.pos.y + 1.4, slime.pos.z + 0.2);
+  it.vel.set(0.18, 0.42, 0);
+  it.life = 0;
+}
+
+// 说话气泡（Canvas 绘制圆角框 + 尾巴，可重绘文字）
+function makeBubbleSprite() {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  function redraw(text) {
+    ctx.clearRect(0, 0, 256, 128);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.strokeStyle = 'rgba(80,120,160,0.9)';
+    ctx.lineWidth = 5;
+    const r = 32;
+    ctx.beginPath();
+    ctx.moveTo(30 + r, 14);
+    ctx.arcTo(226, 14, 226, 86, r);
+    ctx.arcTo(226, 86, 30, 86, r);
+    ctx.arcTo(30, 86, 30, 14, r);
+    ctx.arcTo(30, 14, 226, 14, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // 小尾巴
+    ctx.beginPath();
+    ctx.moveTo(116, 84);
+    ctx.lineTo(128, 116);
+    ctx.lineTo(142, 84);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillRect(118, 78, 22, 8);
+    // 文字
+    ctx.fillStyle = '#2c4a66';
+    ctx.font = 'bold 34px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 50);
+    tex.needsUpdate = true;
+  }
+  return { sp: sp, redraw: redraw };
+}
+const speechPool = [];
+for (let i = 0; i < 4; i++) {
+  const bs = makeBubbleSprite();
+  bs.sp.visible = false;
+  scene.add(bs.sp);
+  speechPool.push({ mesh: bs.sp, redraw: bs.redraw, life: 0, dur: 1.9 });
+}
+let lastSay = -9;
+function say(text) {
+  const now = clock.elapsedTime;
+  if (now - lastSay < 1.1) return;
+  let it = null;
+  for (const s of speechPool) { if (!s.mesh.visible) { it = s; break; } }
+  if (!it) return;
+  lastSay = now;
+  it.redraw(text);
+  it.mesh.visible = true;
+  it.life = 0;
+  it.mesh.scale.set(0.01, 0.01, 1);
+  it.mesh.position.set(slime.pos.x + (Math.random() - 0.5) * 0.5, slime.pos.y + 2.0 * slime.grow + 0.35, slime.pos.z);
+}
+function updateSpeech(dt) {
+  for (const it of speechPool) {
+    if (!it.mesh.visible) continue;
+    it.life += dt / it.dur;
+    if (it.life >= 1) { it.mesh.visible = false; continue; }
+    it.mesh.position.y += 0.12 * dt;
+    const k = Math.min(1, it.life * 6);   // 弹出动画
+    const pop = 1 + Math.sin(Math.min(1, it.life * 4) * Math.PI) * 0.08;
+    it.mesh.scale.set(1.4 * k * pop, 0.7 * k * pop, 1);
+    it.mesh.material.opacity = it.life < 0.72 ? 1 : (1 - it.life) / 0.28;
+  }
+}
+const POKE_SAYS = ['哎呀！', '嘿嘿，好痒～', '干嘛啦～', '再来一次！', '呜哇！'];
+
+// 落地波纹
+const ripples = [];
+const rippleGeo = new THREE.RingGeometry(0.5, 0.62, 40);
+function spawnRipple(x, z, maxOp = 0.65) {
+  let r = ripples.find(r => !r.mesh.visible);
+  if (!r) {
+    const mesh = new THREE.Mesh(rippleGeo,
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.028;
+    scene.add(mesh);
+    r = { mesh, life: 0, maxOp };
+    ripples.push(r);
+  }
+  r.mesh.visible = true;
+  r.mesh.position.x = x; r.mesh.position.z = z;
+  r.life = 0; r.maxOp = maxOp;
+}
+function updateRipples(dt) {
+  for (const r of ripples) {
+    if (!r.mesh.visible) continue;
+    r.life += dt * 1.7;
+    if (r.life >= 1) { r.mesh.visible = false; continue; }
+    const s = 0.35 + r.life * 2.4;
+    r.mesh.scale.set(s, s, s);
+    r.mesh.material.opacity = (1 - r.life) * r.maxOp;
+  }
+}
+
+/* ================= 音效（Web Audio 合成，无外部资源） ================= */
+let actx = null, muted = false, keepAlive = null, rainGain = null;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    // 静音保活振荡器：让浏览器认为页面在播放声音，
+    // 页面切到后台时定时器不被强节流，动画继续运行
+    if (!keepAlive) {
+      keepAlive = actx.createOscillator();
+      const kg = actx.createGain();
+      kg.gain.value = 0.0015;
+      keepAlive.frequency.value = 40;
+      keepAlive.connect(kg).connect(actx.destination);
+      keepAlive.start();
+    }
+    // 雨声循环（白噪声 + 低通），音量由天气系统控制
+    if (!rainGain) {
+      const len = Math.floor(actx.sampleRate * 1.2);
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = actx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 900;
+      rainGain = actx.createGain();
+      rainGain.gain.value = 0;
+      src.connect(f).connect(rainGain).connect(actx.destination);
+      src.start();
+    }
+  } catch (e) { /* 无音频环境时静默失败 */ }
+}
+function blip(f0, f1, dur, vol, delay = 0) {
+  if (muted || !actx) return;
+  try {
+    const t0 = actx.currentTime + delay;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t0 + dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (e) { /* ignore */ }
+}
+function splashSound() {
+  if (muted || !actx) return;
+  try {
+    const dur = 0.3;
+    const buf = actx.createBuffer(1, Math.floor(actx.sampleRate * dur), actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 900;
+    f.Q.value = 0.8;
+    const g = actx.createGain();
+    g.gain.value = 0.25;
+    src.connect(f).connect(g).connect(actx.destination);
+    src.start();
+  } catch (e) { /* ignore */ }
+}
+const muteBtn = document.getElementById('mute');
+muteBtn.addEventListener('click', () => {
+  ensureAudio();
+  muted = !muted;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  if (!muted) blip(500, 900, 0.1, 0.12);
+});
+
+/* ================= 全局状态 ================= */
+const slime = {
+  mode: 'free',                                   // free | grab | hop
+  pos: new THREE.Vector3(0, GROUND_Y, 0),
+  vel: new THREE.Vector3(),
+  prev: new THREE.Vector3(),
+  effVel: new THREE.Vector3(),
+  grabTarget: new THREE.Vector3(),
+  hop: { from: new THREE.Vector3(), to: new THREE.Vector3(), target: new THREE.Vector3(), t: 0, dur: 0.42, h: 0.8, i: 0, count: 0, done: false, waypoint: null },
+  sq:   { x: 0, v: 0 },
+  wob1: { x: 0, v: 0 },
+  wob2: { x: 0, v: 0 },
+  lean: { x: 0, z: 0 },
+  yaw: 0,
+  moodT: 0,
+  blinkT: -1, nextBlink: 1.8,
+  grow: 1,          // 吃苹果变大
+  danceT: 0, danceBaseYaw: 0, danceScale: 1, noteT: 0, beat: 0,
+  chompT: 0,        // 咀嚼动画
+  hopCooldown: 0,
+  idleHopT: 6,      // 开心时原地小跳 / 难过时叹气
+  zT: 3,            // 夜晚打瞌睡 Z 计时
+  zoomT: 0,         // 吃辣椒后的乱窜时间
+  zoomDirT: 0,
+};
+slime.prev.copy(slime.pos);
+
+const mood = { happy: 62 };      // 心情值 0-100
+const pet = { active: false, pulse: 0, toastShown: false };
+const foods = [];                // 场景中的食物
+const babies = [];               // 史莱姆宝宝
+const dnState = { v: 0, target: 0 }; // 昼夜因子 0=白天 1=夜晚
+let lastBabyBlip = 0;
+
+function springUpdate(s, kp, kd, dt) {
+  s.v += (-kp * s.x - kd * s.v) * dt;
+  s.x += s.v * dt;
+}
+function landFx(impact) {
+  slime.sq.x = Math.min(0.5, slime.sq.x + impact * 0.055);
+  slime.wob1.v += Math.min(7, impact * 0.8);
+  spawnRipple(slime.pos.x, slime.pos.z);
+  blip(140 + impact * 18, 80, 0.25, Math.min(0.22, 0.05 + impact * 0.02));
+  // 踩到蘑菇帽 → 弹飞！
+  if (Math.hypot(slime.pos.x - MUSH.x, slime.pos.z - MUSH.z) < 0.75 && impact > 1) {
+    slime.vel.y = 13;
+    slime.sq.v -= 3.5;
+    slime.wob1.v += 5;
+    spawnDebris(new THREE.Vector3(MUSH.x, 0.7, MUSH.z), 10, SPARKLE_COLORS, 4, 1.4, 2.4);
+    blip(80, 340, 0.32, 0.2);
+    say('起飞咯！');
+    achInc('mush5', 1);
+  }
+  if (inPond(slime.pos.x, slime.pos.z)) pondSplash(impact);
+}
+function pondSplash(impact) {
+  const p = new THREE.Vector3(slime.pos.x, 0.1, slime.pos.z);
+  spawnDebris(p, 12, [0x8fd8ff, 0xc8ecff, 0x59c2e8], 10, 2.0, 2.2);
+  spawnRipple(slime.pos.x, slime.pos.z, 0.8);
+  spawnRipple(slime.pos.x + 0.2, slime.pos.z - 0.15, 0.5);
+  splashSound();
+  slime.wob2.v += 3;
+}
+function grabSlime() {
+  slime.mode = 'grab';
+  slime.hop.done = true;
+  slime.wob1.v += 4;
+  slime.sq.x += 0.12;
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+    slime.grabTarget.set(clamp(_v.x, -BOUND, BOUND), 0.95, clamp(_v.z, -BOUND, BOUND));
+  }
+  blip(220, 380, 0.1, 0.1);
+}
+function releaseSlime() {
+  slime.mode = 'free';
+  slime.vel.x = clamp(slime.vel.x, -9, 9);
+  slime.vel.z = clamp(slime.vel.z, -9, 9);
+  slime.vel.y = clamp(slime.vel.y, -2, 6) * 0.6 + 1.2;
+  slime.wob1.v += 3;
+  blip(300, 140, 0.18, 0.12);
+}
+function pokeSlime() {
+  slime.mode = 'free';
+  slime.vel.set((Math.random() - 0.5) * 1.2, 4.8, (Math.random() - 0.5) * 1.2);
+  slime.sq.v -= 3.2;
+  slime.wob1.v += 9;
+  slime.wob2.v += 6;
+  slime.moodT = 0.8;
+  mood.happy = Math.min(100, mood.happy + 3);
+  spawnSparkles();
+  say(POKE_SAYS[Math.floor(Math.random() * POKE_SAYS.length)]);
+  blip(300, 820, 0.12, 0.16);
+}
+function startDance() {
+  if (slime.mode !== 'free' || slime.pos.y > GROUND_Y + 0.05 || slime.danceT > 0) return;
+  ensureAudio();
+  slime.danceT = 2.8;
+  slime.danceBaseYaw = slime.yaw;
+  slime.beat = 0;
+  slime.noteT = 0;
+  say('跟上节奏♪');
+  toast('♪ 开始跳舞！');
+  achInc('dance3', 1);
+}
+function megaJump() {
+  if (slime.mode !== 'free' || slime.pos.y > GROUND_Y + 0.05 || slime.danceT > 0) return;
+  ensureAudio();
+  slime.vel.y = 11.5;
+  slime.sq.v -= 3;
+  slime.wob1.v += 4;
+  spawnSparkles(5);
+  say('起飞咯！');
+  blip(160, 540, 0.2, 0.16);
+  achInc('mega5', 1);
+}
+function computeHopLeg() {
+  const H = slime.hop;
+  // 到达绕行点后清掉，继续朝原目标规划
+  if (H.waypoint && Math.hypot(H.waypoint.x - slime.pos.x, H.waypoint.z - slime.pos.z) < 0.3) H.waypoint = null;
+  const aim = H.waypoint || H.target;
+  const dx = aim.x - slime.pos.x;
+  const dz = aim.z - slime.pos.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.18) {
+    if (H.waypoint) { H.waypoint = null; return computeHopLeg(); }
+    H.done = true; return;
+  }
+  let leg = Math.min(1.15, dist);
+  // 正前方被障碍物挡住：找切线绕行点，优雅地绕过去继续走
+  const hit = segmentToObstacle(slime.pos.x, slime.pos.z, aim.x, aim.z, 0.55);
+  if (hit >= 0 && hit < leg) {
+    const wrap = pickWaypoint(slime.pos, aim);
+    if (wrap) { H.waypoint = wrap; return computeHopLeg(); }
+    // 两侧都绕不开（贴着障碍物且目标在障碍物那侧的夹缝）：截短这一段，小磕一下就停
+    leg = Math.max(hit - 0.06, 0.1);
+    if (hit <= 0.18) H.done = true;
+  }
+  H.from.copy(slime.pos);
+  H.to.set(slime.pos.x + dx / dist * leg, GROUND_Y, slime.pos.z + dz / dist * leg);
+  H.h = 0.5 + 0.3 * (leg / 1.15);
+  H.t = 0;
+  slime.sq.v -= 2.6;
+  blip(170 + H.i * 35, 330, 0.09, 0.08);
+}
+function startHops(target) {
+  if (slime.mode === 'grab' || slime.pos.y > 0.6 || slime.danceT > 0 || pet.active) return;
+  const d = Math.hypot(target.x - slime.pos.x, target.z - slime.pos.z);
+  if (d < 0.35) return;
+  slime.mode = 'hop';
+  const H = slime.hop;
+  // 目标点落在障碍物（树 / 小屋）里时，自动重定向到最近的禁区外
+  const safe = nearestOutsidePoint(target.x, target.z, 0.6);
+  H.target.set(clamp(safe.x, -BOUND, BOUND), GROUND_Y, clamp(safe.z, -BOUND, BOUND));
+  H.waypoint = null;
+  H.count = clamp(Math.ceil(d / 1.15) + 3, 3, 12);   // +3 步余量给绕行
+  H.i = 0;
+  H.done = false;
+  computeHopLeg();
+}
+
+/* ================= 喂食系统 ================= */
+function spawnFood() {
+  ensureAudio();
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0xe83b4e, roughness: 0.35 }));
+  body.castShadow = true;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.09, 6),
+    new THREE.MeshStandardMaterial({ color: 0x7a5233, roughness: 0.9 }));
+  stem.position.y = 0.19;
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4fae4c, roughness: 0.8 }));
+  leaf.scale.set(1, 0.45, 0.6);
+  leaf.position.set(0.05, 0.22, 0);
+  g.add(body, stem, leaf);
+  const a = Math.random() * Math.PI * 2;
+  const r = 1.4 + Math.random() * 0.9;
+  const safeFood = nearestOutsidePoint(
+    clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3),
+    clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3), 0.7);
+  const px = safeFood.x;
+  const pz = safeFood.z;
+  const f = {
+    type: 'apple',
+    g, pos: new THREE.Vector3(px, 4.2, pz), vel: new THREE.Vector3(),
+    mode: 'free', target: new THREE.Vector3(), resting: false, eaten: false, shrink: 1
+  };
+  g.position.copy(f.pos);
+  scene.add(g);
+  foods.push(f);
+  toast('🍎 掉落了一个苹果！');
+  blip(880, 1320, 0.1, 0.08);
+}
+function grabApple(f) {
+  f.mode = 'grab';
+  f.resting = false;
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+    f.target.set(clamp(_v.x, -BOUND, BOUND), 0.5, clamp(_v.z, -BOUND, BOUND));
+  }
+  blip(520, 700, 0.07, 0.07);
+}
+function eatFood(f) {
+  f.eaten = true;
+  f.resting = false;
+  slime.chompT = 0.62;
+  achInc('feed5', 1);
+  if (f.type === 'chili') {
+    // 吃辣椒：辣到满地乱窜
+    slime.zoomT = 3.5;
+    slime.zoomDirT = 0;
+    mood.happy = Math.min(100, mood.happy + 22);
+    slime.grow = Math.min(1.3, slime.grow + 0.03);
+    say('辣辣辣！！');
+    toast('🌶️ 史莱姆辣得到处乱窜！');
+    blip(600, 1400, 0.25, 0.12);
+  } else {
+    mood.happy = Math.min(100, mood.happy + 18);
+    slime.grow = Math.min(1.3, slime.grow + 0.05);
+    for (let k = 0; k < 3; k++) {
+      spawnHeart(new THREE.Vector3(
+        f.pos.x + (Math.random() - 0.5) * 0.3,
+        0.9 + k * 0.25,
+        f.pos.z + (Math.random() - 0.5) * 0.3));
+    }
+    say('好好吃～');
+    toast('史莱姆吃得好开心～❤️');
+  }
+  spawnDebris(f.pos, 7, f.type === 'chili' ? [0xe0342c, 0xff7d6e, 0xffffff] : [0xe83b4e, 0xff7d6e, 0xffb3b3], 5);
+  blip(150, 70, 0.1, 0.16);
+  blip(120, 60, 0.12, 0.12, 0.12);
+  blip(300, 110, 0.2, 0.1, 0.3);
+}
+function spawnChili() {
+  ensureAudio();
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.38, 12),
+    new THREE.MeshStandardMaterial({ color: 0xe0342c, roughness: 0.4 }));
+  body.rotation.z = 0.5;
+  body.position.y = 0.1;
+  body.castShadow = true;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.1, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.9 }));
+  stem.position.set(-0.09, 0.26, 0);
+  stem.rotation.z = 0.5;
+  g.add(body, stem);
+  const a = Math.random() * Math.PI * 2;
+  const r = 1.4 + Math.random() * 0.9;
+  const safeChili = nearestOutsidePoint(
+    clamp(slime.pos.x + Math.cos(a) * r, -BOUND + 0.3, BOUND - 0.3),
+    clamp(slime.pos.z + Math.sin(a) * r, -BOUND + 0.3, BOUND - 0.3), 0.7);
+  const px = safeChili.x;
+  const pz = safeChili.z;
+  const f = {
+    type: 'chili',
+    g, pos: new THREE.Vector3(px, 3.8, pz), vel: new THREE.Vector3(),
+    mode: 'free', target: new THREE.Vector3(), resting: false, eaten: false, shrink: 1
+  };
+  g.position.copy(f.pos);
+  scene.add(g);
+  foods.push(f);
+  toast('🌶️ 一根火辣辣椒掉下来了…');
+  blip(700, 300, 0.15, 0.1);
+}
+function updateFoods(dt) {
+  for (let i = foods.length - 1; i >= 0; i--) {
+    const f = foods[i];
+    if (f.eaten) {
+      f.shrink -= dt * 3;
+      f.g.scale.setScalar(Math.max(0.001, f.shrink));
+      if (f.shrink <= 0.03) { scene.remove(f.g); foods.splice(i, 1); }
+      continue;
+    }
+    if (f.mode === 'grab') {
+      f.vel.x += ((f.target.x - f.pos.x) * 90 - f.vel.x * 10) * dt;
+      f.vel.z += ((f.target.z - f.pos.z) * 90 - f.vel.z * 10) * dt;
+      f.vel.y += ((f.target.y - f.pos.y) * 80 - f.vel.y * 9) * dt;
+    } else {
+      f.vel.y -= 22 * dt;
+    }
+    f.pos.addScaledVector(f.vel, dt);
+    if (f.mode !== 'grab' && f.pos.y < 0.17) {
+      f.pos.y = 0.17;
+      if (f.vel.y < -0.8) { f.vel.y *= -0.35; if (Math.abs(f.vel.y) < 0.8) f.vel.y = 0; }
+      else f.vel.y = 0;
+      f.vel.x *= Math.exp(-4 * dt);
+      f.vel.z *= Math.exp(-4 * dt);
+      if (f.vel.lengthSq() < 0.09) f.resting = true;
+    }
+    f.pos.x = clamp(f.pos.x, -BOUND, BOUND);
+    f.pos.z = clamp(f.pos.z, -BOUND, BOUND);
+    f.g.position.copy(f.pos);
+    f.g.rotation.x += f.vel.z * dt * 1.5;
+    f.g.rotation.z -= f.vel.x * dt * 1.5;
+  }
+}
+
+/* ================= 玩具球 ================= */
+let ball = null;
+let kickCd = 0;
+function toggleBall() {
+  ensureAudio();
+  if (ball) {
+    scene.remove(ball.g);
+    ball = null;
+    toast('球收起来啦');
+    blip(420, 240, 0.16, 0.09);
+    return;
+  }
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14),
+    new THREE.MeshStandardMaterial({ color: 0xff8c3a, roughness: 0.5 }));
+  body.castShadow = true;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 8, 24),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }));
+  ring.rotation.x = Math.PI / 2.2;
+  g.add(body, ring);
+  const a = Math.random() * Math.PI * 2;
+  const safeBall = nearestOutsidePoint(
+    clamp(slime.pos.x + Math.cos(a) * 1.5, -BOUND + 0.3, BOUND - 0.3),
+    clamp(slime.pos.z + Math.sin(a) * 1.5, -BOUND + 0.3, BOUND - 0.3), 0.5);
+  ball = {
+    g,
+    pos: new THREE.Vector3(safeBall.x, 2.4, safeBall.z),
+    vel: new THREE.Vector3(), target: new THREE.Vector3(), mode: 'free'
+  };
+  g.position.copy(ball.pos);
+  scene.add(g);
+  toast('🏀 玩具球来啦！史莱姆会自己追着踢～');
+  blip(520, 880, 0.12, 0.1);
+}
+function grabBall(b) {
+  b.mode = 'grab';
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+    b.target.set(clamp(_v.x, -BOUND, BOUND), 0.5, clamp(_v.z, -BOUND, BOUND));
+  }
+  blip(440, 660, 0.07, 0.07);
+}
+function updateBall(dt) {
+  kickCd -= dt;
+  if (!ball) return;
+  if (ball.mode === 'grab') {
+    ball.vel.x += ((ball.target.x - ball.pos.x) * 90 - ball.vel.x * 10) * dt;
+    ball.vel.z += ((ball.target.z - ball.pos.z) * 90 - ball.vel.z * 10) * dt;
+    ball.vel.y += ((ball.target.y - ball.pos.y) * 80 - ball.vel.y * 9) * dt;
+  } else {
+    ball.vel.y -= 20 * dt;
+  }
+  ball.pos.addScaledVector(ball.vel, dt);
+  if (ball.mode !== 'grab') {
+    if (ball.pos.y < 0.22) {
+      ball.pos.y = 0.22;
+      if (ball.vel.y < -1) {
+        ball.vel.y *= -0.62;
+        if (Math.abs(ball.vel.y) > 2) blip(200, 120, 0.07, 0.06);
+      } else ball.vel.y = 0;
+      ball.vel.x *= Math.exp(-1.1 * dt);
+      ball.vel.z *= Math.exp(-1.1 * dt);
+      // 落在蘑菇帽上 → 弹得更高
+      if (Math.hypot(ball.pos.x - MUSH.x, ball.pos.z - MUSH.z) < 0.72 && ball.vel.y > 1) ball.vel.y += 3;
+    }
+    for (const ax of ['x', 'z']) {
+      if (Math.abs(ball.pos[ax]) > BOUND - 0.1) {
+        ball.pos[ax] = Math.sign(ball.pos[ax]) * (BOUND - 0.1);
+        ball.vel[ax] *= -0.65;
+        blip(240, 180, 0.06, 0.05);
+      }
+    }
+    if (inPond(ball.pos.x, ball.pos.z) && ball.pos.y < 0.3 && Math.abs(ball.vel.y) > 1.5) {
+      spawnDebris(new THREE.Vector3(ball.pos.x, 0.1, ball.pos.z), 5, [0x8fd8ff, 0xc8ecff], 8);
+      spawnRipple(ball.pos.x, ball.pos.z, 0.4);
+      splashSound();
+    }
+    // 落在池塘里 → 漂浮轻晃（不会沉底）
+    if (inPond(ball.pos.x, ball.pos.z) && ball.pos.y <= 0.26) {
+      ball.pos.y = 0.26 + Math.sin(performance.now() * 0.002 + ball.pos.x * 3) * 0.02;
+      if (ball.vel.y < 0) ball.vel.y = 0;
+      ball.vel.x *= Math.exp(-2 * dt);
+      ball.vel.z *= Math.exp(-2 * dt);
+    }
+    // 推出障碍物禁区（发生推挤时给一点反弹）
+    if (pushOutOfObstacles(ball.pos, 0.22) && ball.mode === 'free') {
+      ball.vel.x *= -0.4;
+      ball.vel.z *= -0.4;
+    }
+  }
+  ball.g.position.copy(ball.pos);
+  ball.g.rotation.x += ball.vel.z * dt * 2.4;
+  ball.g.rotation.z -= ball.vel.x * dt * 2.4;
+  // 史莱姆靠近就把球踢飞
+  const d = Math.hypot(ball.pos.x - slime.pos.x, ball.pos.z - slime.pos.z);
+  if (ball.mode === 'free' && d < 0.95 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
+    kickCd = 0.5;
+    const kx = (ball.pos.x - slime.pos.x) / (d || 1);
+    const kz = (ball.pos.z - slime.pos.z) / (d || 1);
+    ball.vel.set(kx * 4.2, 4.6, kz * 4.2);
+    mood.happy = Math.min(100, mood.happy + 3);
+    achInc('kick10', 1);
+    spawnDebris(ball.pos, 3, SPARKLE_COLORS, 4);
+    blip(260, 560, 0.09, 0.1);
+    slime.wob2.v += 2;
+  }
+}
+
+/* ================= 种花模式 ================= */
+let plantMode = false;
+const plants = [];
+function plantFlower(x, z) {
+  const f = makeFlower(flowerColors[Math.floor(Math.random() * flowerColors.length)]);
+  f.position.set(clamp(x, -BOUND + 0.3, BOUND - 0.3), 0.01, clamp(z, -BOUND + 0.3, BOUND - 0.3));
+  f.scale.setScalar(0.01);
+  scene.add(f);
+  plants.push({ g: f, k: 0 });
+  if (plants.length > 24) { const old = plants.shift(); scene.remove(old.g); }
+  spawnDebris(new THREE.Vector3(f.position.x, 0.2, f.position.z), 3, [0x9be8ff, 0xffffff, 0xb8ff9e], 3, 0.8, 1.0);
+  blip(700 + Math.random() * 200, 1200, 0.09, 0.07);
+}
+function updatePlants(dt) {
+  for (const p of plants) {
+    if (p.k >= 1) continue;
+    p.k = Math.min(1, p.k + dt * 1.8);
+    const s = p.k < 1 ? 1 + Math.sin(p.k * Math.PI * 2.2) * 0.28 * (1 - p.k) : 1;
+    p.g.scale.setScalar(Math.max(0.01, s));
+  }
+}
+
+/* ================= 史莱姆宝宝 ================= */
+function makeBabyFace() {
+  const face = new THREE.Group();
+  const eyeGeo = new THREE.SphereGeometry(0.052, 10, 8);
+  const eyeL = new THREE.Mesh(eyeGeo, matPupil);
+  eyeL.position.set(-0.143, 0.29, 0.29);
+  const eyeR = new THREE.Mesh(eyeGeo, matPupil);
+  eyeR.position.set(0.143, 0.29, 0.29);
+  const m = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 14, Math.PI * 0.8), matMouth);
+  m.position.set(0, 0.185, 0.37);
+  m.rotation.set(-0.35, 0, Math.PI + (Math.PI - Math.PI * 0.8) / 2);
+  face.add(eyeL, eyeR, m);
+  return { face, eyeL, eyeR };
+}
+function spawnBaby() {
+  const g = new THREE.Group();
+  const mesh = new THREE.Mesh(slimeGeoMerged, slimeMat);
+  mesh.scale.setScalar(0.42);
+  mesh.position.y = 0.286;
+  mesh.castShadow = true;
+  g.add(mesh);
+  const fc = makeBabyFace();
+  g.add(fc.face);
+  const a = Math.random() * Math.PI * 2;
+  const b = {
+    g, eyeL: fc.eyeL, eyeR: fc.eyeR,
+    pos: new THREE.Vector3(
+      clamp(slime.pos.x + Math.cos(a) * 1.4, -BOUND, BOUND), GROUND_Y,
+      clamp(slime.pos.z + Math.sin(a) * 1.4, -BOUND, BOUND)),
+    vel: new THREE.Vector3(), prev: new THREE.Vector3(), effVel: new THREE.Vector3(),
+    target: new THREE.Vector3(), mode: 'free',
+    sq: { x: 0, v: 0 }, lean: { x: 0, z: 0 }, yaw: 0,
+    followT: 0, blinkT: -1, nextBlink: 1 + Math.random() * 3,
+    leader: null
+  };
+  b.prev.copy(b.pos);
+  g.position.copy(b.pos);
+  scene.add(g);
+  babies.push(b);
+  rewireLeaders();
+  return b;
+}
+function rewireLeaders() {
+  babies.forEach((b, i) => { b.leader = (i === 0) ? slime : babies[i - 1]; });
+}
+function toggleBaby() {
+  ensureAudio();
+  if (babies.length >= 3) {
+    babies.forEach(b => scene.remove(b.g));
+    babies.length = 0;
+    toast('宝宝们回家啦～');
+    blip(500, 220, 0.2, 0.1);
+  } else {
+    spawnBaby();
+    toast('🥚 史莱姆宝宝出现啦！');
+    if (babies.length >= 3) achUnlockNow('baby3');
+    blip(600, 980, 0.14, 0.12);
+  }
+}
+function pokeBaby(b) {
+  b.vel.y = 4.2;
+  b.sq.v -= 2.4;
+  spawnDebris(new THREE.Vector3(b.pos.x, b.pos.y + 0.5, b.pos.z), 3, SPARKLE_COLORS, 5);
+  blip(520, 950, 0.1, 0.1);
+}
+function grabBaby(b) {
+  b.mode = 'grab';
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+    b.target.set(clamp(_v.x, -BOUND, BOUND), 0.85, clamp(_v.z, -BOUND, BOUND));
+  }
+  blip(430, 700, 0.08, 0.08);
+}
+function releaseBaby(b) {
+  b.mode = 'free';
+  b.vel.x = clamp(b.vel.x, -6, 6);
+  b.vel.z = clamp(b.vel.z, -6, 6);
+  b.vel.y = clamp(b.vel.y, -2, 4) * 0.6 + 0.9;
+  blip(380, 200, 0.14, 0.09);
+}
+function updateBabies(dt, t) {
+  for (const b of babies) {
+    b.prev.copy(b.pos);
+    if (b.mode === 'grab') {
+      b.vel.x += ((b.target.x - b.pos.x) * 90 - b.vel.x * 11) * dt;
+      b.vel.z += ((b.target.z - b.pos.z) * 90 - b.vel.z * 11) * dt;
+      const hoverY = 0.85 + Math.sin(t * 3 + 1) * 0.05;
+      b.vel.y += ((hoverY - b.pos.y) * 80 - b.vel.y * 9) * dt;
+      b.pos.addScaledVector(b.vel, dt);
+      b.pos.x = clamp(b.pos.x, -BOUND, BOUND);
+      b.pos.z = clamp(b.pos.z, -BOUND, BOUND);
+    } else {
+      b.vel.y -= 26 * dt;
+      b.pos.addScaledVector(b.vel, dt);
+      if (b.pos.y <= GROUND_Y) {
+        b.pos.y = GROUND_Y;
+        const iv = -b.vel.y;
+        if (iv > 1.2) { b.vel.y = iv * 0.32; b.sq.v += Math.min(5, iv * 0.9); if (iv > 3) spawnRipple(b.pos.x, b.pos.z, 0.4); }
+        else { b.vel.y = 0; b.vel.x *= Math.exp(-6 * dt); b.vel.z *= Math.exp(-6 * dt); }
+      }
+      for (const ax of ['x', 'z']) {
+        if (Math.abs(b.pos[ax]) > BOUND) {
+          b.pos[ax] = Math.sign(b.pos[ax]) * BOUND;
+          b.vel[ax] *= -0.45;
+        }
+      }
+      // 推出障碍物禁区，防止宝宝钻进树 / 小屋
+      pushOutOfObstacles(b.pos, 0.35);
+      // 跟随领队（排成小尾巴）
+      const L = b.leader;
+      if (L) {
+        const dx = b.pos.x - L.pos.x, dz = b.pos.z - L.pos.z;
+        const d = Math.hypot(dx, dz);
+        b.followT -= dt;
+        if (d > 0.95 && b.pos.y <= GROUND_Y + 0.01 && b.followT <= 0) {
+          b.followT = 0.3;
+          const sp = 2.4 + Math.min(d * 0.8, 2);
+          b.vel.x = -dx / d * sp;
+          b.vel.z = -dz / d * sp;
+          b.vel.y = 4.4;
+          b.sq.v -= 2;
+          if (t - lastBabyBlip > 0.15) { lastBabyBlip = t; blip(480 + Math.random() * 160, 760, 0.07, 0.05); }
+        }
+      }
+    }
+    b.effVel.subVectors(b.pos, b.prev).divideScalar(Math.max(dt, 1e-4));
+    springUpdate(b.sq, 170, 11, dt);
+    b.sq.x = clamp(b.sq.x, -0.35, 0.55);
+    const tlx = clamp(-b.effVel.x * 0.04, -0.2, 0.2);
+    const tlz = clamp(-b.effVel.z * 0.04, -0.2, 0.2);
+    b.lean.x += (tlx - b.lean.x) * (1 - Math.exp(-9 * dt));
+    b.lean.z += (tlz - b.lean.z) * (1 - Math.exp(-9 * dt));
+    const spd = Math.hypot(b.effVel.x, b.effVel.z);
+    const targetYaw = spd > 0.8 ? Math.atan2(b.effVel.x, b.effVel.z) : b.yaw;
+    b.yaw = lerpAngle(b.yaw, targetYaw, 1 - Math.exp(-8 * dt));
+    const breath = Math.sin(t * 3 + b.pos.x);
+    b.g.position.copy(b.pos);
+    b.g.rotation.y = b.yaw;
+    b.g.scale.set(
+      Math.max(0.5, (1 + 0.62 * b.sq.x) * (1 - 0.01 * breath)),
+      Math.max(0.45, (1 - 0.85 * b.sq.x) * (1 + 0.02 * breath)),
+      Math.max(0.5, (1 + 0.62 * b.sq.x) * (1 - 0.01 * breath))
+    );
+    // 眨眼 + 夜晚犯困
+    if (t > b.nextBlink) { b.blinkT = 0; b.nextBlink = t + 2.5 + Math.random() * 3.5; }
+    let ey = 1 - dnState.v * 0.45;
+    if (b.blinkT >= 0) {
+      b.blinkT += dt;
+      const ph = b.blinkT / 0.22;
+      if (ph >= 1) b.blinkT = -1;
+      else ey *= Math.max(0.08, 1 - 0.95 * Math.sin(ph * Math.PI));
+    }
+    b.eyeL.scale.y = ey;
+    b.eyeR.scale.y = ey;
+  }
+}
+
+/* ================= 蝴蝶 / 萤火虫更新 ================= */
+function updateButterflies(dt, t) {
+  for (const bf of butterflies) {
+    bf.px = bf.g.position.x;
+    bf.pz = bf.g.position.z;
+    if (bf.dartT > 0) {
+      bf.dartT -= dt;
+      bf.g.position.addScaledVector(bf.dartDir, 3.2 * dt);
+      bf.lp.rotation.z = Math.sin(t * 40) * 1.1;
+      bf.rp.rotation.z = -bf.lp.rotation.z;
+      if (bf.dartT <= 0) {
+        bf.center.set(bf.g.position.x, 0, bf.g.position.z);
+        bf.phase = Math.random() * 10;
+      }
+    } else {
+      const s = bf.speed;
+      const px = bf.center.x + Math.sin(t * 0.33 * s + bf.phase) * 1.5;
+      const pz = bf.center.z + Math.cos(t * 0.27 * s + bf.phase * 1.3) * 1.5;
+      const py = 0.75 + Math.sin(t * 1.1 + bf.phase) * 0.3;
+      bf.g.position.set(px, py, pz);
+      const flap = Math.sin(t * 11 + bf.phase) * 0.95;
+      bf.lp.rotation.z = flap;
+      bf.rp.rotation.z = -flap;
+    }
+    const dx = bf.g.position.x - bf.px, dz = bf.g.position.z - bf.pz;
+    if (Math.abs(dx) + Math.abs(dz) > 1e-4) {
+      bf.g.rotation.y = lerpAngle(bf.g.rotation.y, Math.atan2(dx, dz), 1 - Math.exp(-6 * dt));
+    }
+  }
+}
+function dartButterfly(bf) {
+  raycaster.setFromCamera(ndc, camera);
+  const d = new THREE.Vector3(raycaster.ray.direction.x, 0, raycaster.ray.direction.z);
+  if (d.lengthSq() < 1e-4) d.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+  d.normalize();
+  bf.dartDir.copy(d);
+  bf.dartT = 0.9;
+  blip(700, 1250, 0.08, 0.06);
+}
+function updateFireflies(t) {
+  const dn = dnState.v;
+  for (const fl of fireflies) {
+    const x = fl.cx + Math.sin(t * fl.s1 + fl.ph1) * fl.r;
+    const z = fl.cz + Math.cos(t * fl.s2 + fl.ph2) * fl.r;
+    const y = fl.h + Math.sin(t * 1.3 + fl.ph2) * 0.2;
+    fl.mesh.position.set(x, y, z);
+    fl.mesh.material.opacity = dn * (0.25 + 0.75 * Math.pow(Math.max(0, Math.sin(t * 1.8 + fl.ph1 * 3)), 2));
+  }
+}
+
+/* ================= 昼夜切换 ================= */
+const cDayBg = new THREE.Color(0xbfe4f7), cNightBg = new THREE.Color(0x0d1531);
+const sunDay = new THREE.Color(0xfff1dc), sunNight = new THREE.Color(0x8fa8ff);
+function applyDayNight(dt) {
+  const st = dnState;
+  st.v += (st.target - st.v) * Math.min(1, dt * 2.2);
+  if (Math.abs(st.target - st.v) < 0.002) st.v = st.target;
+  const dn = st.v;
+  // 天气会让光照变暗（雨 > 雪）
+  const wdim = Math.max(0.25, 1 - 0.5 * weather.rainAmt - 0.3 * weather.snowAmt);
+  sun.intensity = lerp(2.3, 0.1, dn) * wdim;
+  sun.color.copy(sunDay).lerp(sunNight, dn);
+  hemi.intensity = lerp(0.6, 0.16, dn) * (0.55 + 0.45 * wdim);
+  moonLight.intensity = dn * 0.55;
+  scene.environmentIntensity = lerp(0.55, 0.14, dn) * wdim;
+  starsMat.opacity = dn * 0.9;
+  moonMat.opacity = dn;
+  winMat.emissiveIntensity = dn * 1.4;
+  houseLight.intensity = dn * 1.6;
+}
+
+/* ================= 指针交互 ================= */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2(-10, -10);
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);        // y = 0
+const dragPlane   = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.9);     // y = 0.9
+const eyePlane    = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.6);     // y = 0.6
+const hitSphere   = new THREE.Sphere(new THREE.Vector3(), 1.05);
+const _v = new THREE.Vector3();
+
+const drag = { active: false, moved: false, kind: 'none', obj: null, x: 0, y: 0, t0: 0, id: -1 };
+
+function updateNdc(e) {
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+}
+function pickTarget() {
+  raycaster.setFromCamera(ndc, camera);
+  hitSphere.radius = 1.05;
+  hitSphere.center.set(slime.pos.x, slime.pos.y + 0.72, slime.pos.z);
+  if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'slime', obj: null };
+  for (const b of babies) {
+    hitSphere.radius = 0.55;
+    hitSphere.center.set(b.pos.x, b.pos.y + 0.35, b.pos.z);
+    if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'baby', obj: b };
+  }
+  if (ball) {
+    hitSphere.radius = 0.38;
+    hitSphere.center.copy(ball.pos);
+    if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'ball', obj: ball };
+  }
+  for (const f of foods) {
+    if (f.eaten) continue;
+    hitSphere.radius = 0.35;
+    hitSphere.center.copy(f.pos);
+    if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'apple', obj: f };
+  }
+  for (const bf of butterflies) {
+    hitSphere.radius = 0.3;
+    hitSphere.center.copy(bf.g.position);
+    if (raycaster.ray.intersectsSphere(hitSphere)) return { kind: 'butterfly', obj: bf };
+  }
+  return { kind: 'none', obj: null };
+}
+
+// 用 window 捕获阶段接管事件：点到史莱姆等目标时阻止 OrbitControls
+window.addEventListener('pointerdown', (e) => {
+  if (e.target !== canvas) return;
+  ensureAudio();
+  updateNdc(e);
+  const hit = pickTarget();
+  drag.active = true; drag.moved = false;
+  drag.kind = hit.kind; drag.obj = hit.obj;
+  drag.x = e.clientX; drag.y = e.clientY; drag.t0 = performance.now(); drag.id = e.pointerId;
+  if (hit.kind === 'apple') grabApple(hit.obj);
+  if (hit.kind === 'ball') grabBall(hit.obj);
+  if (hit.kind !== 'none') e.stopPropagation();
+  // slime / baby：先挂起，等移动(抓起)或长按(抚摸)再决定
+}, true);
+
+window.addEventListener('pointermove', (e) => {
+  updateNdc(e);
+  if (!drag.active || e.pointerId !== drag.id) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 7) {
+    drag.moved = true;
+    if (pet.active) pet.active = false;
+    if (drag.kind === 'slime' && slime.mode !== 'grab') grabSlime();
+    if (drag.kind === 'baby' && drag.obj && drag.obj.mode !== 'grab') grabBaby(drag.obj);
+  }
+  if (drag.kind === 'slime' && slime.mode === 'grab') {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+      slime.grabTarget.set(clamp(_v.x, -BOUND, BOUND), 0.95, clamp(_v.z, -BOUND, BOUND));
+    }
+  } else if (drag.kind === 'baby' && drag.obj && drag.obj.mode === 'grab') {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+      drag.obj.target.set(clamp(_v.x, -BOUND, BOUND), 0.85, clamp(_v.z, -BOUND, BOUND));
+    }
+  } else if (drag.kind === 'apple' && drag.obj && drag.obj.mode === 'grab') {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+      drag.obj.target.set(clamp(_v.x, -BOUND, BOUND), 0.5, clamp(_v.z, -BOUND, BOUND));
+    }
+  } else if (drag.kind === 'ball' && drag.obj && drag.obj.mode === 'grab') {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(dragPlane, _v)) {
+      drag.obj.target.set(clamp(_v.x, -BOUND, BOUND), 0.5, clamp(_v.z, -BOUND, BOUND));
+    }
+  }
+}, true);
+
+window.addEventListener('pointerup', (e) => {
+  if (!drag.active || e.pointerId !== drag.id) return;
+  const quick = performance.now() - drag.t0 < 300;
+  const k = drag.kind;
+  if (k === 'slime') {
+    pet.active = false;
+    if (slime.mode === 'grab') {
+      if (!drag.moved && quick) pokeSlime();
+      else releaseSlime();
+    } else if (!drag.moved && quick) {
+      pokeSlime();
+    }
+  } else if (k === 'baby' && drag.obj) {
+    const b = drag.obj;
+    if (b.mode === 'grab') releaseBaby(b);
+    else if (!drag.moved && quick) pokeBaby(b);
+  } else if (k === 'apple' && drag.obj) {
+    drag.obj.mode = 'free';
+    blip(400, 260, 0.08, 0.06);
+  } else if (k === 'ball' && drag.obj) {
+    drag.obj.mode = 'free';
+    blip(400, 260, 0.08, 0.06);
+  } else if (k === 'butterfly' && drag.obj) {
+    if (!drag.moved && quick) dartButterfly(drag.obj);
+  } else if (k === 'none') {
+    if (!drag.moved && quick) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(groundPlane, _v)) {
+        if (inPond(_v.x, _v.z)) fishJump();
+        if (plantMode) plantFlower(_v.x, _v.z);
+        else startHops(_v);
+      }
+    }
+  }
+  drag.active = false; drag.kind = 'none'; drag.obj = null; drag.id = -1;
+  canvas.style.cursor = 'default';
+}, true);
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// 键盘：空格 = 超级跳，B = 跳舞，Esc = 退出拍照模式
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.code === 'Space') { e.preventDefault(); megaJump(); }
+  else if (e.key === 'b' || e.key === 'B') startDance();
+  else if (e.key === 'Escape' && document.body.classList.contains('photo')) {
+    document.body.classList.remove('photo');
+    document.getElementById('photoBtn').textContent = '📷';
+    toast('欢迎回来！');
+  }
+});
+
+/* ================= 每帧更新：史莱姆 ================= */
+const DANCE_NOTES = [523, 659, 784, 1047];
+let vertsDeformed = true;   // 顶点当前是否处于形变状态（用于静止时跳过逐顶点更新）
+function updateSlime(dt, t) {
+  const S = slime;
+  S.prev.copy(S.pos);
+  S.hopCooldown -= dt;
+
+  if (S.mode === 'grab') {
+    // 弹簧跟随指针：滞后 + 回弹，天然带出手感
+    S.vel.x += ((S.grabTarget.x - S.pos.x) * 90 - S.vel.x * 11) * dt;
+    S.vel.z += ((S.grabTarget.z - S.pos.z) * 90 - S.vel.z * 11) * dt;
+    const hoverY = 0.95 + Math.sin(t * 3) * 0.06;
+    S.vel.y += ((hoverY - S.pos.y) * 80 - S.vel.y * 9) * dt;
+    S.pos.addScaledVector(S.vel, dt);
+    S.pos.x = clamp(S.pos.x, -BOUND, BOUND);
+    S.pos.z = clamp(S.pos.z, -BOUND, BOUND);
+    S.wob1.v += Math.min(Math.hypot(S.vel.x, S.vel.z) * dt * 0.5, 0.02);
+  } else if (S.mode === 'hop') {
+    const H = S.hop;
+    H.t += dt / H.dur;
+    if (H.t >= 1) {
+      S.pos.set(H.to.x, GROUND_Y, H.to.z);
+      landFx(3.4);
+      H.i++;
+      if (H.done || H.i >= H.count) { S.mode = 'free'; S.vel.set(0, 0, 0); }
+      else computeHopLeg();
+    } else {
+      S.pos.x = lerp(H.from.x, H.to.x, H.t);
+      S.pos.z = lerp(H.from.z, H.to.z, H.t);
+      S.pos.y = GROUND_Y + 4 * H.h * H.t * (1 - H.t);
+      // 低空掠过时推出禁区，避免落进树冠 / 小屋里卡住
+      if (S.pos.y < 1.0) pushOutOfObstacles(S.pos, 0.55);
+    }
+  } else if (S.mode === 'free' && S.danceT > 0) {
+    // 跳舞：节奏摆动 + 小跳 + 音符
+    S.danceT -= dt;
+    const tt = 2.8 - S.danceT;
+    S.pos.y = GROUND_Y + Math.abs(Math.sin(tt * 9)) * 0.15;
+    S.yaw = S.danceBaseYaw + Math.sin(tt * 9) * 0.6;
+    S.danceScale = 1 + 0.06 * Math.sin(tt * 18);
+    S.vel.set(0, 0, 0);
+    S.noteT -= dt;
+    if (S.noteT <= 0) {
+      S.noteT = 0.32;
+      spawnNote();
+      blip(DANCE_NOTES[S.beat % 4], DANCE_NOTES[S.beat % 4] * 1.5, 0.12, 0.07);
+      S.beat++;
+    }
+    if (S.danceT <= 0) { S.pos.y = GROUND_Y; S.danceScale = 1; landFx(2.2); }
+  } else { // free：重力 + 弹跳
+    // 吃辣椒后：辣到满地乱窜
+    if (S.zoomT > 0) {
+      S.zoomT -= dt;
+      S.zoomDirT -= dt;
+      if (S.zoomDirT <= 0 && S.zoomT > 0) {
+        S.zoomDirT = 0.24;
+        const za = Math.random() * Math.PI * 2;
+        S.vel.set(Math.cos(za) * 6.5, 3.2 + Math.random() * 1.2, Math.sin(za) * 6.5);
+        spawnDebris(new THREE.Vector3(S.pos.x, S.pos.y + 1.1, S.pos.z), 1, [0xdddddd, 0xbfbfbf], -0.5, 0.4, 0.8);
+        blip(480 + Math.random() * 320, 950, 0.07, 0.05);
+      }
+      if (S.zoomT <= 0) {
+        S.wob1.v += 6;
+        S.moodT = 1;
+        toast('呼……好辣！！🔥');
+      }
+    }
+    S.vel.y -= 26 * dt;
+    S.pos.addScaledVector(S.vel, dt);
+    if (S.pos.y <= GROUND_Y) {
+      S.pos.y = GROUND_Y;
+      const iv = -S.vel.y;
+      if (iv > 1.4) {
+        S.vel.y = iv * 0.36;                    // 弹起
+        landFx(iv);
+      } else {
+        S.vel.y = 0;
+        S.vel.x *= Math.exp(-6 * dt);
+        S.vel.z *= Math.exp(-6 * dt);
+        if (iv > 0.4) landFx(iv * 0.6);
+      }
+    }
+    // 贴地时推出障碍物禁区（树 / 小屋），并沿"墙面"滑动：
+    // 去掉撞进障碍物的速度分量，只保留切向速度，避免硬推位置造成的闪现感
+    if (S.pos.y < 0.8 && pushOutOfObstacles(S.pos, 0.55)) {
+      for (const o of OBSTACLES) {
+        const nx = S.pos.x - o.x, nz = S.pos.z - o.z;
+        const nd = Math.hypot(nx, nz) || 1e-4;
+        if (nd < o.r + 0.62) {
+          const vn = (S.vel.x * nx + S.vel.z * nz) / (nd * nd);
+          if (vn < 0) { S.vel.x -= vn * nx; S.vel.z -= vn * nz; }
+        }
+      }
+    }
+    for (const ax of ['x', 'z']) {              // 边界反弹
+      if (Math.abs(S.pos[ax]) > BOUND) {
+        S.pos[ax] = Math.sign(S.pos[ax]) * BOUND;
+        S.vel[ax] *= -0.45;
+        S.wob1.v += 2;
+      }
+    }
+  }
+
+  // 实际速度（hop 模式下也能得到），用于朝向与果冻倾斜
+  S.effVel.subVectors(S.pos, S.prev).divideScalar(Math.max(dt, 1e-4));
+
+  // 各弹簧积分
+  springUpdate(S.sq, 170, 11, dt);   S.sq.x = clamp(S.sq.x, -0.35, 0.55);
+  springUpdate(S.wob1, 85, 3.5, dt); S.wob1.x = clamp(S.wob1.x, -0.085, 0.085);
+  springUpdate(S.wob2, 105, 3.2, dt); S.wob2.x = clamp(S.wob2.x, -0.07, 0.07);
+
+  // 非跳舞时才做果冻滞后倾斜 + 朝向
+  if (!(S.mode === 'free' && S.danceT > 0)) {
+    const tlx = clamp(-S.effVel.x * 0.045, -0.24, 0.24);
+    const tlz = clamp(-S.effVel.z * 0.045, -0.24, 0.24);
+    S.lean.x += (tlx - S.lean.x) * (1 - Math.exp(-9 * dt));
+    S.lean.z += (tlz - S.lean.z) * (1 - Math.exp(-9 * dt));
+    const spd = Math.hypot(S.effVel.x, S.effVel.z);
+    const targetYaw = spd > 0.8 ? Math.atan2(S.effVel.x, S.effVel.z) : 0;
+    S.yaw = lerpAngle(S.yaw, targetYaw, 1 - Math.exp(-8 * dt));
+  }
+
+  // 应用位置 / 旋转 / 挤压呼吸缩放（+ 变大 + 跳舞弹跳）
+  const breath = Math.sin(t * 2.2);
+  slimeGroup.position.copy(S.pos);
+  slimeGroup.rotation.y = S.yaw;
+  const extra = S.grow * S.danceScale;
+  slimeGroup.scale.set(
+    Math.max(0.4, (1 + 0.62 * S.sq.x) * (1 - 0.008 * breath) * extra),
+    Math.max(0.35, (1 - 0.85 * S.sq.x) * (1 + 0.02 * breath) * extra),
+    Math.max(0.4, (1 + 0.62 * S.sq.x) * (1 - 0.008 * breath) * extra)
+  );
+
+  // 顶点抖动：沿原始法线叠加两个衰减正弦模态 + 顶部滞后偏移
+  // 性能优化：抖动 / 倾斜都趋近 0 时跳过逐顶点更新（静止时不空耗性能）
+  const curGeo = slimeMesh.geometry;
+  const wobAmp = Math.abs(S.wob1.x) + Math.abs(S.wob2.x);
+  const leanAmp = Math.abs(S.lean.x) + Math.abs(S.lean.z);
+  const deformed = wobAmp > 0.002 || leanAmp > 0.02;
+  if (deformed) {
+    const posArr = curGeo.attributes.position.array;
+    for (let i = 0; i < posArr.length; i += 3) {
+      const bx = basePos[i], by = basePos[i + 1], bz = basePos[i + 2];
+      const nx = baseNor[i], ny = baseNor[i + 1], nz = baseNor[i + 2];
+      const h = clamp((by + 0.6725) / 1.5725, 0, 1);
+      const d = S.wob1.x * Math.sin(t * 13 + by * 2.6 + bx * 1.9 + bz * 1.3)
+              + S.wob2.x * Math.sin(t * 17.3 + bx * 2.2 - bz * 1.7);
+      const hh = h * h;
+      posArr[i]     = bx + nx * d + S.lean.x * hh;
+      posArr[i + 1] = by + ny * d;
+      posArr[i + 2] = bz + nz * d + S.lean.z * hh;
+    }
+    curGeo.attributes.position.needsUpdate = true;
+    curGeo.computeVertexNormals();
+    vertsDeformed = true;
+  } else if (vertsDeformed) {
+    // 刚从运动进入静止：把顶点恢复成原始形状，之后不再逐帧更新
+    curGeo.attributes.position.array.set(basePos);
+    curGeo.attributes.position.needsUpdate = true;
+    curGeo.computeVertexNormals();
+    vertsDeformed = false;
+  }
+
+  slimeGroup.updateMatrixWorld(true);
+}
+
+let faceHidden = false;   // 某些变身（如 🦆）不显示史莱姆的五官
+function updateFace(dt, t) {
+  const S = slime;
+  const dn = dnState.v;
+
+  // 无脸模式：整张脸藏起来（鸭子等形状）
+  if (faceHidden) {
+    eyeL.group.visible = eyeR.group.visible = false;
+    arcL.visible = arcR.visible = false;
+    smile.visible = mouthO.visible = false;
+    cheeks.forEach(c => { c.visible = false; });
+    return;
+  }
+
+  // 嘴巴：咀嚼 > 惊讶 > 心情表情
+  if (S.chompT > 0) {
+    S.chompT -= dt;
+    smile.visible = false;
+    mouthO.visible = true;
+    mouthO.scale.setScalar(1.5 + 0.45 * Math.sin(t * 38));
+    if (S.chompT <= 0) mouthO.scale.setScalar(1);
+  } else if (S.moodT > 0) {
+    S.moodT -= dt;
+    smile.visible = false;
+    mouthO.visible = true;
+  } else {
+    const sad = mood.happy < 28;
+    smile.visible = true;
+    mouthO.visible = false;
+    smile.rotation.z = sad ? 0 : Math.PI;  // ∩ 苦瓜脸 / ∪ 微笑
+  }
+
+  // 眼睛：抚摸/开心时眯眯眼；夜晚犯困半闭；平时圆眼+眨眼
+  const happyArc = (pet.active || mood.happy > 75) && S.moodT <= 0 && S.chompT <= 0;
+  eyeL.group.visible = !happyArc;
+  eyeR.group.visible = !happyArc;
+  arcL.visible = happyArc;
+  arcR.visible = happyArc;
+
+  if (t > S.nextBlink) { S.blinkT = 0; S.nextBlink = t + (2.2 + Math.random() * 3.5) * (1 + dn); }
+  let eyeScaleY = 1 - dn * 0.5;
+  if (S.blinkT >= 0) {
+    S.blinkT += dt;
+    const ph = S.blinkT / 0.24;
+    if (ph >= 1) { S.blinkT = -1; }
+    else eyeScaleY *= Math.max(0.06, 1 - 0.95 * Math.sin(ph * Math.PI));
+  }
+  eyeL.group.scale.y = Math.max(0.05, eyeScaleY);
+  eyeR.group.scale.y = Math.max(0.05, eyeScaleY);
+
+  // 瞳孔跟随鼠标（转到史莱姆本地坐标计算）
+  raycaster.setFromCamera(ndc, camera);
+  const ok = raycaster.ray.intersectPlane(eyePlane, _v);
+  if (!ok) _v.copy(camera.position);
+  slimeGroup.worldToLocal(_v);
+  _v.sub(new THREE.Vector3(0, 0.7, 0)).normalize();
+  const px = clamp(_v.x, -1, 1) * 0.05;
+  const py = clamp(_v.y, -1, 1) * 0.045;
+  for (const eye of [eyeL, eyeR]) {
+    eye.pupil.position.set(
+      eye.n.x * 0.082 + eye.right.x * px + eye.up.x * py,
+      eye.n.y * 0.082 + eye.right.y * px + eye.up.y * py,
+      eye.n.z * 0.082 + eye.right.z * px + eye.up.z * py
+    );
+  }
+}
+
+/* ================= 第四波逻辑：成就 / 摘星 / 变形 / 小鱼 ================= */
+const ACH_DEFS = {
+  pet10:  { name: '抚摸达人',   desc: '累计抚摸 10 秒',      need: 10 },
+  feed5:  { name: '小吃货',     desc: '喂食 5 次',           need: 5 },
+  kick10: { name: '足球明星',   desc: '踢球 10 次',          need: 10 },
+  mush5:  { name: '弹跳高手',   desc: '蘑菇弹射 5 次',       need: 5 },
+  dance3: { name: '舞林高手',   desc: '跳舞 3 次',           need: 3 },
+  star1:  { name: '摘星者',     desc: '完成一次摘星挑战',    need: 1 },
+  color5: { name: '色彩收藏家', desc: '尝试 5 种颜色',       need: 5 },
+  baby3:  { name: '全家福',     desc: '同时拥有 3 只宝宝',   need: 3 },
+  mega5:  { name: '飞天史莱姆', desc: '超级跳 5 次',         need: 5 },
+};
+let achData;
+try { achData = JSON.parse(localStorage.getItem('slime-ach') || '{}'); } catch (e) { achData = {}; }
+achData.unlocked = achData.unlocked || {};
+achData.c = achData.c || {};
+function saveAch() {
+  try { localStorage.setItem('slime-ach', JSON.stringify(achData)); } catch (e) { /* 隐私模式忽略 */ }
+}
+function achCelebrate(def) {
+  toast('🏅 成就解锁：' + def.name + '（' + def.desc + '）');
+  blip(660, 1320, 0.14, 0.1);
+  blip(880, 1760, 0.16, 0.1, 0.12);
+}
+function achInc(id, add) {
+  const def = ACH_DEFS[id];
+  if (!def || achData.unlocked[id]) return;
+  achData.c[id] = (achData.c[id] || 0) + add;
+  if (achData.c[id] >= def.need) achData.unlocked[id] = true;
+  saveAch();
+  if (achData.unlocked[id]) achCelebrate(def);
+}
+function achUnlockNow(id) {
+  if (!ACH_DEFS[id] || achData.unlocked[id]) return;
+  achData.unlocked[id] = true;
+  saveAch();
+  achCelebrate(ACH_DEFS[id]);
+}
+
+// —— 摘星挑战 ——
+const starShapeGeo = (() => {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.17 : 0.075;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 });
+})();
+const starGame = { active: false, stars: [], collected: 0, total: 5 };
+function toggleStarGame() {
+  ensureAudio();
+  if (starGame.active) {
+    starGame.stars.forEach(s => scene.remove(s.mesh));
+    starGame.stars = [];
+    starGame.active = false;
+    document.getElementById('starHud').classList.remove('show');
+    toast('摘星挑战取消');
+    blip(420, 240, 0.15, 0.08);
+    return;
+  }
+  starGame.active = true;
+  starGame.collected = 0;
+  starGame.stars = [];
+  for (let i = 0; i < starGame.total; i++) {
+    const mesh = new THREE.Mesh(starShapeGeo, new THREE.MeshBasicMaterial({ color: 0xffd44d }));
+    let x = 0, z = 0, ok = false, tries = 0;
+    while (!ok && tries < 40) {
+      x = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      z = (Math.random() * 2 - 1) * (BOUND - 0.7);
+      const safe = nearestOutsidePoint(x, z, 0.65);
+      x = safe.x; z = safe.z;
+      ok = Math.hypot(x - slime.pos.x, z - slime.pos.z) > 1.2 &&
+           starGame.stars.every(s => Math.hypot(x - s.mesh.position.x, z - s.mesh.position.z) > 1.0) &&
+           !inPond(x, z);
+      tries++;
+    }
+    mesh.position.set(x, 0.55, z);
+    scene.add(mesh);
+    starGame.stars.push({ mesh, ph: Math.random() * 6 });
+  }
+  const hud = document.getElementById('starHud');
+  hud.textContent = '⭐ 0 / ' + starGame.total;
+  hud.classList.add('show');
+  toast('⭐ 摘星挑战开始！史莱姆会自己去收集');
+  say('摘星星咯！');
+  blip(520, 1040, 0.15, 0.1);
+}
+function collectStar(s) {
+  scene.remove(s.mesh);
+  starGame.collected++;
+  const hud = document.getElementById('starHud');
+  if (starGame.collected >= starGame.total) {
+    starGame.active = false;
+    hud.textContent = '⭐ 全部收集！';
+    setTimeout(() => hud.classList.remove('show'), 1400);
+    mood.happy = Math.min(100, mood.happy + 26);
+    spawnDebris(new THREE.Vector3(slime.pos.x, slime.pos.y + 1.2, slime.pos.z), 14,
+      [0xffd44d, 0xff8fb3, 0x9be8ff, 0xb8ff9e], 4, 2.2, 2.4);
+    for (let k = 0; k < 4; k++) {
+      spawnHeart(new THREE.Vector3(
+        slime.pos.x + (Math.random() - 0.5) * 0.8,
+        slime.pos.y + 1.2 + k * 0.2,
+        slime.pos.z));
+    }
+    toast('⭐ 全部收集完成！史莱姆太棒了！');
+    say('全部拿到啦！');
+    blip(523, 523, 0.12, 0.1);
+    blip(659, 659, 0.12, 0.1, 0.12);
+    blip(784, 784, 0.12, 0.1, 0.24);
+    blip(1047, 1047, 0.25, 0.12, 0.36);
+    achInc('star1', 1);
+  } else {
+    hud.textContent = '⭐ ' + starGame.collected + ' / ' + starGame.total;
+    spawnDebris(s.mesh.position, 6, [0xffd44d, 0xfff4b8, 0xffffff], 4);
+    blip(880, 1560, 0.12, 0.12);
+    mood.happy = Math.min(100, mood.happy + 4);
+  }
+}
+function updateStarGame(dt, t) {
+  if (!starGame.active) return;
+  for (const s of starGame.stars) {
+    s.mesh.position.y = 0.55 + Math.sin(t * 2 + s.ph) * 0.08;
+    s.mesh.rotation.y += dt * 1.6;
+  }
+}
+
+// —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
+const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
+let slimeShapeIdx = 0;
+const shapeCache = {};
+function getShapeGeo(i) {
+  if (shapeCache[i]) return shapeCache[i];
+  let g;
+  if (i === 1) {                                    // 小方块
+    g = new THREE.BoxGeometry(1.56, 1.56, 1.56, 4, 4, 4);
+    g.translate(0, 0.1075, 0);                      // 底部对齐 -0.6725
+  } else if (i === 2) {                             // 甜甜圈
+    g = new THREE.TorusGeometry(0.95, 0.52, 16, 30);
+    g.rotateX(Math.PI / 2);
+    g.translate(0, -0.1525, 0);
+  } else if (i === 3) {                             // 布丁
+    const pts = [
+      new THREE.Vector2(0.001, 0),
+      new THREE.Vector2(0.72, 0),
+      new THREE.Vector2(0.95, 0.26),
+      new THREE.Vector2(0.82, 0.6),
+      new THREE.Vector2(0.32, 0.9),
+      new THREE.Vector2(0.001, 0.99),
+    ];
+    g = new THREE.LatheGeometry(pts, 28);
+    g.scale(1.05, 1.42, 1.05);
+    g.translate(0, -0.6725, 0);
+  } else {
+    return slimeGeoMerged;                          // 圆滚滚（本来就是焊接好的）
+  }
+  // 关键修复（v2.1）：方块 / 甜甜圈 / 布丁的原始几何在棱边和接缝处有
+  // 位置重合但法线不同的重复顶点，果冻抖动沿各自法线位移会把表面撕裂（"散架"）。
+  // 去掉 uv / normal 后按位置焊接成完整表面，再重算法线，抖动就不会裂开了
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g = mergeVertices(g, 1e-4);
+  g.computeVertexNormals();
+  shapeCache[i] = g;
+  return g;
+}
+// —— Emoji 变身：每个 emoji 都是手工搭的立体果冻模型（v2.4） ——
+// 例：🐷 = 头球 + 前凸的猪鼻子 + 耳朵；🍄 = 半球伞盖 + 小柱子菇柄
+function part(geo, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) {
+  if (sx !== 1 || sy !== 1 || sz !== 1) geo.scale(sx, sy, sz);
+  if (rx) geo.rotateX(rx);
+  if (ry) geo.rotateY(ry);
+  if (rz) geo.rotateZ(rz);
+  geo.translate(x, y, z);
+  return geo;
+}
+const mkBall = (r, seg = 20) => new THREE.SphereGeometry(r, seg, Math.max(10, Math.round(seg * 0.7)));
+const mkCone = (r, h, seg = 5) => new THREE.ConeGeometry(r, h, seg);
+const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg);
+const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+
+const EMOJI_BUILDERS = {
+  '🐻': () => [                                  // 熊（青蛙模型）：扁宽头 + 头顶两只圆耳包
+    part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
+    part(mkBall(0.24), 1, 1, 1, -0.34, 0.63, 0.3),
+    part(mkBall(0.24), 1, 1, 1, 0.34, 0.63, 0.3),
+  ],
+  '🐰': () => [                                  // 兔：饱满圆头 + 两只厚长耳
+    part(mkBall(0.84), 1, 1, 0.98, 0, 0, 0),
+    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, -0.28, 0.72, -0.05, 0, 0, 0.12),
+    part(new THREE.CapsuleGeometry(0.18, 0.46, 6, 14), 1, 1, 1, 0.28, 0.72, -0.05, 0, 0, -0.12),
+  ],
+  '🍄': () => [                                  // 蘑菇：厚柱柄（脸在柄上）+ 顶部宽伞盖
+    part(mkCyl(0.5, 0.56, 1.3, 18), 1, 1, 1, 0, -0.02, 0),
+    part(mkBall(0.95), 1, 0.34, 1, 0, 0.88, 0),
+  ],
+  '🐢': () => [                                  // 乌龟：圆龟壳 + 伸出的头 + 四只小脚
+    part(mkBall(0.8), 1.05, 0.7, 1.05, 0, 0.15, -0.05),
+    part(mkBall(0.3), 1, 0.9, 1, 0, -0.05, 0.66),
+    part(mkBall(0.18), 1, 1, 1, -0.52, -0.42, 0.38),
+    part(mkBall(0.18), 1, 1, 1, 0.52, -0.42, 0.38),
+    part(mkBall(0.18), 1, 1, 1, -0.52, -0.42, -0.5),
+    part(mkBall(0.18), 1, 1, 1, 0.52, -0.42, -0.5),
+  ],
+  '🥕': () => [                                  // 胡萝卜：尖朝下的身子 + 三片叶子
+    part(mkCone(0.55, 1.5, 12), 1, 1, 1, 0, -0.35, 0, Math.PI),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, -0.18, 0.8, 0, 0, 0, 0.45),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, 0, 0.9, 0),
+    part(mkCone(0.16, 0.42, 6), 1, 1, 1, 0.18, 0.8, 0, 0, 0, -0.45),
+  ],
+  '🧁': () => [                                  // 纸杯蛋糕：纸杯 + 奶油顶 + 樱桃
+    part(mkCyl(0.62, 0.48, 0.62, 14), 1, 1, 1, 0, -0.42, 0),
+    part(mkBall(0.7), 1.06, 0.78, 1.06, 0, 0.28, 0),
+    part(mkBall(0.14), 1, 1, 1, 0, 0.78, 0),
+  ],
+  '🦆': () => [                                  // 鸭子：圆头 + 厚扁嘴 + 饱满身子 + 上翘尾巴 + 小翅膀（不显示史莱姆的眼睛和微笑）
+    part(mkBall(0.8), 1, 0.88, 0.95, 0, -0.28, 0),
+    part(mkBall(0.45), 1, 0.95, 0.95, 0, 0.45, 0.18),
+    part(mkBall(0.24), 1, 0.42, 1.15, 0, 0.36, 0.68),
+    part(mkCone(0.18, 0.4, 8), 1, 1, 1, 0, 0.1, -0.72, -0.9),
+    part(mkBall(0.16), 1, 0.75, 0.9, -0.7, -0.12, -0.05),
+    part(mkBall(0.16), 1, 0.75, 0.9, 0.7, -0.12, -0.05),
+  ],
+  '🌵': () => [                                  // 仙人掌：粗主干 + 两根手臂
+    part(new THREE.CapsuleGeometry(0.42, 0.9, 6, 14), 1, 1, 1, 0, -0.05, 0),
+    part(new THREE.CapsuleGeometry(0.2, 0.4, 6, 12), 1, 1, 1, -0.62, 0.25, 0),
+    part(new THREE.CapsuleGeometry(0.2, 0.4, 6, 12), 1, 1, 1, 0.62, 0.45, 0),
+  ],
+};
+function buildEmojiGeo(e) {
+  const b = EMOJI_BUILDERS[e];
+  if (!b) return null;
+  const parts = b();
+  let g = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+  g.center();
+  g.computeBoundingBox();
+  const bb = g.boundingBox;
+  const big = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z);
+  if (big > 1.95) g.scale(1.95 / big, 1.95 / big, 1.95 / big);   // 兜底：别比史莱姆本体大太多
+  g.computeBoundingBox();
+  g.translate(0, -0.6725 - g.boundingBox.min.y, 0);              // 底部贴地，和史莱姆一样
+  // 焊接顶点 + 重算法线：抖动时每个零件都是完整表面，不会裂开
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  g = mergeVertices(g, 1e-4);
+  g.computeVertexNormals();
+  return g;
+}
+// —— 五官贴面：换形状后把眼睛 / 嘴 / 腮红重新贴到新形状的表面 ——
+// 在五官原本的 (x, y) 处向 -z 打射线找表面落点；那一档找不到就往下再找
+// （比如甜甜圈的眼睛会自动落到环面顶部）；实在找不到的腮红先藏起来。
+const faceRay = new THREE.Raycaster();
+function faceHit(x, y) {
+  for (let yy = y; yy > y - 0.5; yy -= 0.1) {
+    faceRay.set(new THREE.Vector3(x, yy, 5), new THREE.Vector3(0, 0, -1));
+    const hits = faceRay.intersectObject(slimeMesh, false);
+    if (hits.length) return { p: hits[0].point, n: hits[0].face.normal.clone().normalize() };
+  }
+  return null;
+}
+function fitFaceToShape() {
+  // 射线在几何本地空间做：暂时清零史莱姆的位移 / 旋转 / 挤压，完事再还原
+  const gp = slimeGroup.position.clone(), gr = slimeGroup.rotation.clone(), gs = slimeGroup.scale.clone();
+  slimeGroup.position.set(0, 0, 0);
+  slimeGroup.rotation.set(0, 0, 0);
+  slimeGroup.scale.set(1, 1, 1);
+  slimeGroup.updateMatrixWorld(true);
+  [eyeL, eyeR].forEach((eye, i) => {
+    const hit = faceHit(i === 0 ? -0.30 : 0.30, 0.60);
+    if (hit) {
+      eye.group.position.copy(hit.p).addScaledVector(hit.n, 0.02);
+      eye.n.copy(hit.n);
+      eye.right.set(0, 1, 0).cross(eye.n).normalize();
+      eye.up.copy(eye.n).cross(eye.right).normalize();
+    }
+  });
+  arcL.position.copy(eyeL.group.position);
+  arcR.position.copy(eyeR.group.position);
+  const mHit = faceHit(0, 0.40);
+  if (mHit) {
+    smile.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
+    mouthO.position.copy(mHit.p).addScaledVector(mHit.n, 0.01);
+    mouthO.position.y -= 0.02;
+  }
+  cheeks.forEach((cheek, i) => {
+    const hit = faceHit(i === 0 ? -0.47 : 0.47, 0.42);
+    cheek.visible = !!hit;
+    if (hit) {
+      cheek.position.copy(hit.p).addScaledVector(hit.n, 0.012);
+      cheek.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hit.n);
+    }
+  });
+  slimeGroup.position.copy(gp);
+  slimeGroup.rotation.copy(gr);
+  slimeGroup.scale.copy(gs);
+  slimeGroup.updateMatrixWorld(true);
+}
+function applyEmojiShape(e) {
+  ensureAudio();
+  const g = buildEmojiGeo(e);
+  if (!g) { toast('这个变不出来，换一个试试？'); return; }
+  slimeShapeIdx = -1;
+  faceHidden = (e === '🦆');   // 鸭子是无脸干净版
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  fitFaceToShape();
+  spawnSparkles(8);
+  say('变——！');
+  toast(e + ' 变身！点 🧪 可换其他形状');
+  blip(240, 980, 0.22, 0.13);
+  document.getElementById('shapePanel').classList.remove('open');
+}
+function applyShape(i) {
+  ensureAudio();
+  slimeShapeIdx = i;
+  faceHidden = false;
+  const g = getShapeGeo(i);
+  slimeMesh.geometry = g;
+  basePos = Float32Array.from(g.attributes.position.array);
+  baseNor = Float32Array.from(g.attributes.normal.array);
+  fitFaceToShape();
+  spawnSparkles(6);
+  say('变——！');
+  toast('🧪 变成了' + SHAPE_NAMES[i]);
+  blip(260 + i * 90, 900, 0.18, 0.12);
+  document.getElementById('shapePanel').classList.remove('open');
+}
+
+// —— 池塘小鱼（定时跃出水面，点池塘惊鱼） ——
+const fishes = [];
+{
+  const fishMat = new THREE.MeshStandardMaterial({ color: 0xff9a4d, roughness: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 8), fishMat);
+    body.rotation.x = Math.PI / 2;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 8), fishMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = -0.13;
+    g.add(body, tail);
+    g.visible = false;
+    scene.add(g);
+    fishes.push({ g, cool: 1.5 + i * 2.2, jumping: false, pt: 0, p0: new THREE.Vector3(), p1: new THREE.Vector3() });
+  }
+}
+function fishJump() {
+  const f = fishes.find(f => !f.jumping);
+  if (!f) return;
+  const a = Math.random() * Math.PI * 2;
+  const r0 = Math.random() * 0.5;
+  const a2 = a + 1.2 + Math.random() * 1.2;
+  const r1 = 0.3 + Math.random() * 0.5;
+  f.p0.set(POND.x + Math.cos(a) * r0, 0.05, POND.z + Math.sin(a) * r0);
+  f.p1.set(POND.x + Math.cos(a2) * r1, 0.05, POND.z + Math.sin(a2) * r1);
+  f.jumping = true;
+  f.pt = 0;
+  f.g.visible = true;
+  spawnRipple(f.p0.x, f.p0.z, 0.4);
+  spawnDebris(new THREE.Vector3(f.p0.x, 0.08, f.p0.z), 3, [0x8fd8ff, 0xc8ecff], 7, 0.8, 1.4);
+  blip(320, 720, 0.08, 0.06);
+}
+function updateFishes(dt) {
+  for (const f of fishes) {
+    if (f.jumping) {
+      f.pt += dt / 0.85;
+      if (f.pt >= 1) {
+        f.jumping = false;
+        f.g.visible = false;
+        f.cool = 2.5 + Math.random() * 4.5;
+        spawnRipple(f.p1.x, f.p1.z, 0.35);
+      } else {
+        f.g.position.lerpVectors(f.p0, f.p1, f.pt);
+        f.g.position.y = 0.06 + Math.sin(f.pt * Math.PI) * 0.5;
+        f.g.rotation.y = Math.atan2(f.p1.x - f.p0.x, f.p1.z - f.p0.z);
+        f.g.rotation.x = -Math.sin(f.pt * Math.PI) * 0.9;
+      }
+    } else {
+      f.cool -= dt;
+      if (f.cool <= 0) fishJump();
+    }
+  }
+}
+
+/* ================= 每帧更新：全局逻辑 ================= */
+function updateGameLogic(dt, t) {
+  const S = slime;
+
+  // --- 抚摸判定：按住史莱姆不动超过 420ms ---
+  if (drag.active && drag.kind === 'slime' && !drag.moved && slime.mode === 'free'
+      && slime.pos.y <= GROUND_Y + 0.05 && performance.now() - drag.t0 > 420) {
+    if (!pet.active) {
+      pet.active = true;
+      pet.pulse = 0;
+      S.sq.v -= 1;
+      say('摸摸头～');
+      if (!pet.toastShown) { pet.toastShown = true; toast('被摸得好舒服～❤️ 继续按住'); }
+    }
+  }
+  if (pet.active) {
+    mood.happy = Math.min(100, mood.happy + dt * 7);
+    achInc('pet10', dt);
+    pet.pulse -= dt;
+    if (pet.pulse <= 0) {
+      pet.pulse = 0.26;
+      spawnHeart(new THREE.Vector3(
+        S.pos.x + (Math.random() - 0.5) * 0.7, S.pos.y + 1.3 + Math.random() * 0.3, S.pos.z + (Math.random() - 0.5) * 0.4));
+      blip(90 + Math.random() * 35, 65, 0.13, 0.05);
+      S.sq.v -= 0.35;
+    }
+  } else {
+    mood.happy = Math.max(0, mood.happy - dt * 0.35);
+  }
+  // 下雨天天心情会慢慢变好（史莱姆喜欢雨天）
+  if (weather.rainAmt > 0.7) mood.happy = Math.min(100, mood.happy + dt * 0.5);
+
+  // --- 自动去吃食物 ---
+  if (S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 && S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0) {
+    for (const f of foods) {
+      if (f.eaten || !f.resting) continue;
+      const d = Math.hypot(f.pos.x - S.pos.x, f.pos.z - S.pos.z);
+      if (d < 0.8) { eatFood(f); break; }
+      if (d < 8 && S.hopCooldown <= 0) {
+        S.hopCooldown = 1.2;
+        startHops(f.pos);
+        break;
+      }
+    }
+  }
+
+  // --- 摘星挑战：碰到星星就收集，并自动追下一颗 ---
+  if (starGame.active && S.mode === 'free' && !pet.active && S.danceT <= 0 && S.chompT <= 0 && S.zoomT <= 0) {
+    for (let i = starGame.stars.length - 1; i >= 0; i--) {
+      const st = starGame.stars[i];
+      const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
+      if (d < 0.65 && S.pos.y < 1.1) {
+        collectStar(st);
+        starGame.stars.splice(i, 1);
+      }
+    }
+    if (starGame.active && starGame.stars.length > 0 && S.pos.y <= GROUND_Y + 0.05 && S.hopCooldown <= 0) {
+      let best = null, bd = 99;
+      for (const st of starGame.stars) {
+        const d = Math.hypot(st.mesh.position.x - S.pos.x, st.mesh.position.z - S.pos.z);
+        if (d < bd) { bd = d; best = st; }
+      }
+      if (best && bd > 0.7 && bd < 9) {
+        S.hopCooldown = 1.0;
+        startHops(best.mesh.position);
+      }
+    }
+  }
+
+  // --- 没有吃的就去追球玩 ---
+  if (ball && ball.mode === 'free' && S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 &&
+      S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
+    const hasFood = foods.some(f => !f.eaten && f.resting);
+    const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
+    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
+      S.hopCooldown = 1.0;
+      startHops(ball.pos);
+    }
+  }
+
+  // --- 待机小动作：开心小跳 / 难过叹气 / 夜晚打瞌睡 ---
+  S.idleHopT -= dt;
+  if (S.idleHopT <= 0) {
+    S.idleHopT = 5 + Math.random() * 5;
+    if (S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 && S.danceT <= 0 && !pet.active && S.zoomT <= 0) {
+      if (mood.happy > 75) { S.vel.y = 3.2; S.sq.v -= 1.5; blip(330, 520, 0.09, 0.07); }
+      else if (mood.happy < 28) { S.sq.v -= 0.9; blip(140, 70, 0.3, 0.06); }
+    }
+  }
+  S.zT -= dt;
+  if (S.zT <= 0) {
+    S.zT = 3.5 + Math.random() * 2;
+    if (dnState.v > 0.6 && S.mode === 'free' && S.pos.y <= GROUND_Y + 0.05 && !pet.active && S.danceT <= 0) spawnZ();
+  }
+
+  // --- 消化：慢慢变回原大小 ---
+  if (S.grow > 1) S.grow = Math.max(1, S.grow - dt * 0.006);
+
+  // --- 彩虹模式 ---
+  if (slimeRainbow) {
+    const hue = (t * 0.05) % 1;
+    slimeMat.color.setHSL(hue, 0.7, 0.62);
+    slimeMat.attenuationColor.setHSL(hue, 0.85, 0.5);
+  }
+}
+
+/* ================= UI：心情条 / 提示 / 按钮 ================= */
+const moodFill = document.getElementById('moodFill');
+const moodFace = document.getElementById('moodFace');
+function updateMoodUI() {
+  const h = mood.happy;
+  moodFill.style.width = h + '%';
+  moodFill.style.background = h > 60 ? '#5fd07a' : h > 30 ? '#ffb84d' : '#ff7d6e';
+  moodFace.textContent = h > 60 ? '😀' : h > 30 ? '😐' : '😟';
+}
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function toast(txt) {
+  toastEl.textContent = txt;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+document.getElementById('feedBtn').addEventListener('click', spawnFood);
+document.getElementById('chiliBtn').addEventListener('click', spawnChili);
+document.getElementById('ballBtn').addEventListener('click', toggleBall);
+document.getElementById('starBtn').addEventListener('click', toggleStarGame);
+document.getElementById('shapeBtn').addEventListener('click', () => {
+  ensureAudio();
+  document.getElementById('shapePanel').classList.toggle('open');
+  blip(600, 900, 0.08, 0.08);
+});
+document.querySelectorAll('#shapePanel .shapeTile').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.shape !== undefined) applyShape(+btn.dataset.shape);
+    else applyEmojiShape(btn.dataset.emoji);
+  });
+});
+document.getElementById('babyBtn').addEventListener('click', toggleBaby);
+document.getElementById('hatBtn').addEventListener('click', cycleHat);
+document.getElementById('danceBtn').addEventListener('click', startDance);
+document.getElementById('paletteBtn').addEventListener('click', () => {
+  ensureAudio();
+  document.getElementById('palettePanel').classList.toggle('open');
+});
+// 天气切换：晴 → 雨 → 雪
+const weatherBtn = document.getElementById('weatherBtn');
+weatherBtn.addEventListener('click', () => {
+  ensureAudio();
+  weather.mode = (weather.mode + 1) % 3;
+  weatherBtn.textContent = ['☔', '❄️', '☀️'][weather.mode];
+  toast(['☔ 下雨啦！史莱姆最喜欢雨天～', '❄️ 下雪了，好安静呀…', '☀️ 天晴啦！'][weather.mode]);
+  blip(500, 760, 0.12, 0.08);
+});
+// 昼夜切换（v2.1 修复：此监听器在早前版本覆写中丢失，导致 🌙 点击无反应）
+const nightBtn = document.getElementById('nightBtn');
+nightBtn.addEventListener('click', () => {
+  ensureAudio();
+  dnState.target = dnState.target === 0 ? 1 : 0;
+  nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
+  toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  blip(dnState.target === 1 ? 400 : 600, dnState.target === 1 ? 180 : 1000, 0.25, 0.1);
+});
+// 拍照模式：隐藏界面 + 尝试保存快照
+const photoBtn = document.getElementById('photoBtn');
+function setPhotoMode(on) {
+  document.body.classList.toggle('photo', on);
+  photoBtn.textContent = on ? '🖼️' : '📷';
+  if (on) {
+    toast('📷 拍照模式（按 Esc 或再点相机退出）');
+    try {
+      renderer.render(scene, camera);
+      canvas.toBlob((blob) => {
+        try {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'slime-' + Date.now() + '.png';
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+        } catch (e) { /* 下载被拦截时只隐藏界面 */ }
+      });
+    } catch (e) { /* ignore */ }
+  } else {
+    toast('欢迎回来！');
+  }
+}
+photoBtn.addEventListener('click', () => {
+  ensureAudio();
+  setPhotoMode(!document.body.classList.contains('photo'));
+});
+// 种花模式开关
+document.getElementById('plantBtn').addEventListener('click', () => {
+  ensureAudio();
+  plantMode = !plantMode;
+  document.getElementById('plantBtn').classList.toggle('active', plantMode);
+  toast(plantMode ? '🌱 种花模式：点击地面种花！' : '退出了种花模式');
+  blip(600, plantMode ? 980 : 420, 0.1, 0.09);
+});
+// 捕获运行期错误，方便调试
+window.addEventListener('error', (e) => toast('⚠️ ' + e.message));
+
+/* ================= 主循环 ================= */
+const clock = new THREE.Clock();
+function tickBody() {
+  const dt = Math.min(clock.getDelta(), 0.033);
+  const t = clock.elapsedTime;
+
+  updateSlime(dt, t);
+  updateFace(dt, t);
+  updateGameLogic(dt, t);
+  updateFoods(dt);
+  updateBall(dt);
+  updatePlants(dt);
+  updateStarGame(dt, t);
+  updateFishes(dt);
+  updateBabies(dt, t);
+  updateButterflies(dt, t);
+  updateFireflies(t);
+  updateWeatherFx(dt, t);
+  updateSpeech(dt);
+  updateRipples(dt);
+  updateFloatPool(debrisPool, dt);
+  updateFloatPool(heartPool, dt);
+  updateFloatPool(notePool, dt);
+  updateFloatPool(zzzPool, dt);
+  applyDayNight(dt);
+  updateMoodUI();
+
+  for (const c of clouds) {
+    c.position.x += c.userData.v * dt;
+    if (c.position.x > 15) c.position.x = -15;
+  }
+
+  // 悬停光标提示
+  if (!drag.active) {
+    canvas.style.cursor = pickTarget().kind !== 'none' ? 'grab' : 'default';
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+function tick() {
+  requestAnimationFrame(tick);
+  tickBody();
+}
+tick();
+// 页面在后台（rAF 暂停）时，用定时器继续驱动模拟
+setInterval(() => { if (document.hidden) tickBody(); }, 66);
+
+// 首帧渲染完成后再淡入，并隐藏加载页
+canvas.classList.add('ready');
+document.getElementById('loading').classList.add('hide');
+
+// 开场引导
+slime.wob1.v = 6;
+spawnRipple(0, 0, 0.5);
+setTimeout(() => toast('点我、拖我、长按摸摸我 →'), 1200);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
