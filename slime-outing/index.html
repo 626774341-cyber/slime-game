@@ -218,6 +218,13 @@ setTimeout(function(){
   var err = document.getElementById('loadErr');
   if(err){ err.style.display='block'; err.textContent = '⏳ 还在下载 3D 引擎（首次访问约 0.3~1.3MB，弱网较慢），请再等等…'; }
 }, 20000);
+// 8 秒：若连模块脚本都没启动，说明浏览器内核过旧
+setTimeout(function(){
+  if(!window.__moduleStarted && !window.__outingLoaded){
+    var err = document.getElementById('loadErr');
+    if(err){ err.style.display='block'; err.textContent = '😮 当前浏览器内核过旧，无法运行本页面。请使用 Chrome 打开，或升级系统后再试。'; }
+  }
+}, 8000);
 setTimeout(function(){
   if(window.__outingLoaded) return;
   var err = document.getElementById('loadErr');
@@ -232,23 +239,17 @@ setTimeout(function(){
 </script>
 
 <script type="module">
-// Three.js 三级加载：仓库自托管（最稳）→ jsdelivr → unpkg
+// Three.js 三级加载（.then 链式写法，兼容旧内核内置浏览器）
+window.__moduleStarted = true;
 window.__loadStage('📥 正在下载 3D 引擎…');
-let THREE;
-try{
-  THREE = await import('./three.module.js');
-}catch(e0){
-  try{
-    THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js');
-  }catch(e1){
-    try{
-      THREE = await import('https://unpkg.com/three@0.170.0/build/three.module.js');
-    }catch(e2){
-      throw new Error('Three.js 加载失败，请检查网络后刷新重试：'+e2.message);
-    }
-  }
+function loadEngine(){
+  return import('./three.module.js')
+    .catch(function(){ return import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js'); })
+    .catch(function(){ return import('https://unpkg.com/three@0.170.0/build/three.module.js'); });
 }
-window.__loadStage('🏗️ 正在构建箱庭世界…');
+loadEngine().then(function(THREE){
+  window.__loadStage('🏗️ 正在构建箱庭世界…');
+  try{
 
 /* ================================================================
    工具
@@ -3063,6 +3064,17 @@ setTimeout(()=>{
   ui.loading.classList.add('hide');
   toast('🧺 欢迎来到郊游！长按史莱姆打个招呼吧', true, 3000);
 }, 900);
+  }catch(bootErr){
+    var el=document.getElementById('loadErr');
+    if(el){ el.style.display='block'; el.textContent='构建失败：'+bootErr.message; }
+    console.error(bootErr);
+  }
+}).catch(function(loadErr){
+  var el=document.getElementById('loadErr');
+  if(el){ el.style.display='block'; el.textContent='Three.js 加载失败，请检查网络后刷新重试：'+loadErr.message; }
+  var loading=document.getElementById('loading');
+  if(loading) loading.classList.remove('hide');
+});
 </script>
 </body>
 </html>
