@@ -55,6 +55,8 @@ function sendEdge() {
 
 function injectPetUI() {
   // —— 以下代码运行在页面里（模块脚本已执行完，window.__pet 可用）——
+  const pet = window.__pet;
+  if (!pet) return;                                // 游戏脚本未就绪时放弃注入
   const st = document.createElement('style');
   st.textContent = [
     'html, body { background: transparent !important; }',
