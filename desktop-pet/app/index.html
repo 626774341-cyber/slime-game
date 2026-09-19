@@ -843,30 +843,40 @@ function cycleHat() {
   blip(500, hatIdx < 0 ? 260 : 800, 0.1, 0.09);
 }
 // —— 帽子高度和缩放自动适配当前形态 ——
-// 每种形状有精调的帽子基座高度和缩放比
 const HAT_FIT = [
-  { y: 1.42, s: 1.0 },    // 圆滚滚：球面顶部
-  { y: 1.56, s: 0.85 },   // 小方块：平面顶部（帽子缩小避免悬空）
-  { y: 1.06, s: 1.15 },   // 甜甜圈：环面顶部（帽子放大稳住）
-  { y: 1.38, s: 0.9 },    // 布丁：尖端顶部（帽子略缩小）
+  { y: 1.42, s: 1.0 },    // 圆滚滚
+  { y: 1.56, s: 0.85 },   // 小方块
+  { y: 1.06, s: 1.15 },   // 甜甜圈
+  { y: 1.38, s: 0.9 },    // 布丁
 ];
-let currentShapeIdx = 0;
+// 每个 emoji 的帽子戴在"头"顶（不是耳朵/装饰顶端）
+const EMOJI_HAT = {
+  '🐻': { y: 1.20, s: 0.85 },   // 熊：头圆顶（耳朵旁边）
+  '🐰': { y: 1.35, s: 0.85 },   // 兔：圆头顶（耳朵下方）
+  '🍄': { y: 1.72, s: 1.15 },   // 蘑菇：伞盖顶部
+  '🐢': { y: 1.30, s: 1.1 },    // 龟：壳顶
+  '🥕': { y: 1.02, s: 0.75 },   // 胡萝卜：身子顶部
+  '🧁': { y: 1.42, s: 0.9 },    // 蛋糕：奶油顶
+  '🦆': { y: 1.48, s: 0.8 },    // 鸭：圆头顶
+  '🌵': { y: 1.38, s: 0.9 },    // 仙人掌：主干顶
+};
 function updateHatHeight() {
-  const fit = HAT_FIT[slimeShapeIdx] || null;
-  if (fit) {
+  if (slimeShapeIdx >= 0 && slimeShapeIdx < 4) {
+    const fit = HAT_FIT[slimeShapeIdx];
     hatGroup.position.y = fit.y;
     hatGroup.scale.setScalar(fit.s);
     return;
   }
-  // Emoji 果冻 / 其他形状：用包围盒顶部
+  if (slimeShapeIdx === -1 && currentEmojiName && EMOJI_HAT[currentEmojiName]) {
+    const ef = EMOJI_HAT[currentEmojiName];
+    hatGroup.position.y = ef.y;
+    hatGroup.scale.setScalar(ef.s);
+    return;
+  }
+  // 兜底：用包围盒
   slimeMesh.geometry.computeBoundingBox();
-  const bb = slimeMesh.geometry.boundingBox;
-  const top = slimeMesh.position.y + bb.max.y;
-  hatGroup.position.y = Math.max(top - 0.02, 0.4);
+  hatGroup.position.y = slimeMesh.position.y + slimeMesh.geometry.boundingBox.max.y - 0.05;
   hatGroup.scale.setScalar(1.0);
-}
-function updateHatY(y) {
-  hatGroup.position.y = y;
 }
 
 /* ================= 换色系统 ================= */
@@ -2428,6 +2438,7 @@ const mkCone = (r, h, seg = 5) => new THREE.ConeGeometry(r, h, seg);
 const mkCyl = (rt, rb, h, seg = 16) => new THREE.CylinderGeometry(rt, rb, h, seg);
 const mkBox = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
+let currentEmojiName = '';
 const EMOJI_BUILDERS = {
   '🐻': () => [                                  // 熊（青蛙模型）：扁宽头 + 头顶两只圆耳包
     part(mkBall(0.88), 1.02, 0.85, 0.98, 0, -0.12, 0),
