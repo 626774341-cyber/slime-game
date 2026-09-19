@@ -186,12 +186,6 @@ function injectPetUI() {
     '  background: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }',
     'body.pet-open #toolbar { opacity: 1; pointer-events: auto; transform: translateY(0) !important; }',
     '.tool { width: 40px !important; height: 40px !important; font-size: 20px !important; }',
-    '/* ❤️ 陪伴时间胶囊：顶部左侧 */',
-    '#petCompanion { position: fixed; top: 14px; left: 170px; z-index: 33;',
-    '  padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.35);',
-    '  color: #6a8aaa; font-size: 11px; pointer-events: none; user-select: none;',
-    '  transition: background .3s ease; }',
-    '#petCompanion:hover { background: rgba(255,255,255,.85); color: #2c4a66; }',
     '/* 💤 睡觉气泡 + 头顶名牌 + 拖喂提示 */',
     '#petSleep { position: fixed; font-size: 34px; z-index: 3; pointer-events: none; display: none;',
     '  animation: petZzz 2s ease-in-out infinite; }',
@@ -563,12 +557,9 @@ function injectPetUI() {
   window.__petVersion = (v) => { ver.textContent = '桌宠 ' + v; };
 
   // —— ❤️ 陪伴时间：左下角小心跳胶囊，记录和史莱姆在一起的总时长 ——
-  const companion = document.createElement('div');
-  companion.id = 'petCompanion';
-  companion.innerHTML = '❤️ <span id="petCompTime">刚来</span>';
-  document.body.appendChild(companion);
 
   const KEY = 'slime_pet_total_ms';
+  let updateCompanion = () => {};
   const sessionStart = Date.now();
   let baseTotal = parseInt(localStorage.getItem(KEY) || '0', 10) || 0;
 
@@ -587,7 +578,7 @@ function injectPetUI() {
     if (mins < 60) return mins + ' 分钟';
     return Math.floor(mins / 60) + ' 小时 ' + (mins % 60) + ' 分';
   }
-  function updateCompanion() {
+  updateCompanion = function () {
     const sessionMs = Date.now() - sessionStart;
     const total = baseTotal + sessionMs;
     const el = document.getElementById('petCompTime');
@@ -602,6 +593,38 @@ function injectPetUI() {
   setInterval(updateCompanion, 30000);                       // 每 30 秒刷新
   setInterval(saveCompanion, 300000);                        // 每 5 分钟保存
   window.addEventListener('beforeunload', saveCompanion);
+
+  // 把陪伴时间注入心情条内部（和心情合为一体）
+  setTimeout(() => {
+    const card = document.getElementById('moodCard');
+    if (!card) return;
+    const sep = document.createElement('span');
+    sep.textContent = '·';
+    sep.style.cssText = 'color:#aab; margin:0 2px;';
+    const comp = document.createElement('span');
+    comp.id = 'moodCompanion';
+    comp.style.cssText = 'font-size:11px; color:#8aa4bc; white-space:nowrap;';
+    comp.textContent = '刚来';
+    card.appendChild(sep);
+    card.appendChild(comp);
+    const compEl = comp;
+    // 让 updateCompanion 同时刷新心情条里的文本
+    const origUpdate = updateCompanion;
+    updateCompanion = function () {
+      origUpdate();
+      const sessionMs = Date.now() - sessionStart;
+      const total = baseTotal + sessionMs;
+      const mins = Math.floor(total / 60000);
+      const hours = Math.floor(mins / 60);
+      const days = Math.floor(hours / 24);
+      let txt = '刚来';
+      if (days > 0) txt = days + '天';
+      else if (hours > 0) txt = hours + '小时';
+      else if (mins > 0) txt = mins + '分钟';
+      compEl.textContent = '❤️ ' + txt;
+    };
+    updateCompanion();
+  }, 200);
 
   // —— 逗猫棒开关 + 取名入口（放进互动抽屉最前面，样式与其他按钮统一）——
   const catBtn = document.createElement('button');
