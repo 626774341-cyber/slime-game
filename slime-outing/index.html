@@ -150,7 +150,7 @@
 <div class="ui card" id="titleCard">
   <h1>🧺 史莱姆郊游 · 3D</h1>
   <div class="sub">自然探索资料片 · 人机交互小组作业</div>
-  <span id="verChip">v1.0.0 · 郊游日记</span><a id="homeLink" href="../index.html">🏠 回箱庭</a>
+    <span id="verChip">v1.6.0 · 郊游日记</span><a id="homeLink" href="../index.html">🏠 回箱庭</a>
 </div>
 
 <!-- 右上按钮 -->
@@ -167,8 +167,12 @@
   <b>🎒 郊游玩法</b><br>
   🖐️ 拖动史莱姆 · 甩出去<br>
   👆 点一下戳戳 · 🤚 长按抚摸<br>
-  🎯 点草地跳过去 · 点湖面游泳<br>
-  🛶 点小船登船兜风<br>
+    🎯 点草地跳过去 · 点湖面游泳<br>
+    🎣 点码头鱼竿钓鱼<br>
+    🤸 蹦床弹飞（弹得高会翻跟头）<br>
+    🫧 点泡泡瓶吹泡泡 · 戳破它<br>
+    🪁 点风筝放飞 · 再点翻跟头<br>
+    🛶 点小船登船兜风<br>
   🐰 点小动物交朋友<br>
   🎈 点气球放飞 · 再点戳破<br>
   🔥 点篝火 · 📻 点收音机<br>
@@ -322,6 +326,14 @@ $('modalClose').onclick = ()=>ui.modalWrap.classList.remove('show');
 ui.modalWrap.onclick = e=>{ if(e.target===ui.modalWrap) ui.modalWrap.classList.remove('show'); };
 
 $('verChip').onclick = ()=>openModal('📜 郊游日记 · 更新日志', `
+  <h3>v1.6.0 交互扩展 + 优化</h3>
+  <ul>
+    <li>🤸 新增蹦床：越弹越高，弹得高会空翻</li>
+    <li>🎣 新增码头钓鱼：栈桥 + 鱼竿，鱼会跃出湖面</li>
+    <li>🫧 新增泡泡瓶：吹泡泡、戳泡泡</li>
+    <li>🪁 新增风筝：放飞盘旋、翻跟头</li>
+    <li>🛠️ 优化：木筏朝向修正 · ⭐ 任务和心情本地保存，刷新不丢失</li>
+  </ul>
   <h3>v1.0.0 资料片《郊游日记》</h3>
   <ul>
     <li>🏞️ 全新地图：青山、湖泊、小岛、野餐营地</li>
@@ -802,12 +814,17 @@ scene.add(water);
 const stones = [];
 const lilyPads = [];
 let boat = null;
+const trampoline = { x:6.2, z:-2.8, r:1.15, y:0, dip:0, mat:null };
 
 function boatDeckY(){ return WATER_Y + 0.28; }
 
 function groundInfo(x,z){
   if(boat && dist2d(x,z,boat.group.position.x,boat.group.position.z) < 1.5)
     return { h:boatDeckY(), kind:'boat' };
+  if(dist2d(x,z,trampoline.x,trampoline.z) < trampoline.r)
+    return { h:trampoline.y, kind:'tramp' };
+  if(x < -0.05 && x > -3.6 && Math.abs(z-8.6) < 0.3)
+    return { h:0.2, kind:'dock' };
   for(const st of stones){
     if(dist2d(x,z,st.mesh.position.x,st.mesh.position.z) < 0.62)
       return { h:st.top, kind:'stone' };
@@ -1229,6 +1246,157 @@ let chest = null;
 }
 
 /* ================================================================
+   扩展交互：蹦床 / 码头钓鱼 / 泡泡瓶 / 风筝
+================================================================ */
+/* --- 蹦床 --- */
+{
+  const g = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({ color:0x3a6ea8, roughness:0.5, metalness:0.3 });
+  for(let i=0;i<4;i++){
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.55,8), frameMat);
+    const a = (i/4)*TAU + Math.PI/4;
+    leg.position.set(Math.cos(a)*0.85, 0.27, Math.sin(a)*0.85);
+    g.add(leg);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.0,0.07,8,24), frameMat);
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.55;
+  trampoline.mat = new THREE.Mesh(new THREE.CircleGeometry(0.95,24),
+    new THREE.MeshStandardMaterial({ color:0x4a90d9, roughness:0.7 }));
+  trampoline.mat.rotation.x = -Math.PI/2; trampoline.mat.position.y = 0.55;
+  g.add(ring, trampoline.mat);
+  trampoline.y = terrainHeight(6.2,-2.8) + 0.55;
+  g.position.set(6.2, terrainHeight(6.2,-2.8), -2.8);
+  shadowify(g);
+  scene.add(g);
+  regInteractive(g, 'tramp', '蹦床');
+}
+
+/* --- 木栈桥码头 + 钓鱼点 --- */
+let fishingLine = null;
+const fishSpot = { x:-3.2, z:8.6 };
+{
+  const g = new THREE.Group();
+  const plankMat = new THREE.MeshStandardMaterial({ map:texWood('#c08c50'), roughness:1 });
+  for(let i=0;i<6;i++){
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.05,0.6), plankMat);
+    plank.position.set(-0.2 - i*0.56, 0.175, 8.6);
+    g.add(plank);
+  }
+  const postMat = new THREE.MeshStandardMaterial({ map:texWood('#8a5a30'), roughness:1 });
+  for(const px of [-0.3,-1.4,-2.5,-3.35]){
+    for(const pz of [8.32, 8.88]){
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,1.6,6), postMat);
+      post.position.set(px, -0.5, pz);
+      g.add(post);
+    }
+  }
+  const buoy = new THREE.Mesh(new THREE.TorusGeometry(0.13,0.045,8,18),
+    new THREE.MeshStandardMaterial({ color:0xff6b6b, roughness:0.6 }));
+  buoy.position.set(-0.3, 0.3, 8.32);
+  g.add(buoy);
+  const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.07,0.15,10),
+    new THREE.MeshStandardMaterial({ color:0x5b8def, roughness:0.6 }));
+  bucket.position.set(-3.0, 0.32, 8.8);
+  g.add(bucket);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.016,0.85,5), postMat);
+  rod.rotation.z = 0.85; rod.rotation.y = Math.PI;   // 竿头伸向湖面
+  rod.position.set(-3.35, 0.55, 8.55);
+  g.add(rod);
+  g.position.set(0,0,0);
+  shadowify(g);
+  scene.add(g);
+  regInteractive(g, 'fishspot', '钓鱼点');
+  fishingLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([V3(),V3()]),
+    new THREE.LineBasicMaterial({ color:0xeeeeee, transparent:true, opacity:0.85 })
+  );
+  fishingLine.visible = false;
+  scene.add(fishingLine);
+}
+
+/* --- 泡泡瓶 --- */
+const bubbles = [];
+let bubbleJar = null;
+{
+  const g = new THREE.Group();
+  const glassMat = new THREE.MeshPhysicalMaterial({ color:0xcfeeff, roughness:0.1, transparent:true, opacity:0.45, clearcoat:1 });
+  const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,0.26,12), glassMat);
+  jar.position.y = 0.13;
+  const pinkMat = new THREE.MeshStandardMaterial({ color:0xff8fb0, roughness:0.4 });
+  const wand = new THREE.Mesh(new THREE.TorusGeometry(0.09,0.012,6,16), pinkMat);
+  wand.position.set(0.17,0.06,0);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.24,6), pinkMat);
+  stick.position.set(0.17,-0.08,0);
+  g.add(jar, wand, stick);
+  g.position.set(0.2, 0.07, 1.9);
+  shadowify(g);
+  camp.add(g);
+  bubbleJar = g;
+  regInteractive(g, 'jar', '泡泡瓶');
+}
+function blowBubbles(){
+  if(bubbles.length>=14){ toast('泡泡已经满天飞啦！先戳破几个～'); return; }
+  const n = rint(4,6);
+  const dir = V3(Math.sin(slime.group.rotation.y), 0, Math.cos(slime.group.rotation.y));
+  for(let i=0;i<n;i++){
+    if(bubbles.length>=14) break;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.14,12,10),
+      new THREE.MeshPhysicalMaterial({ color:0xcfeeff, roughness:0.05, transparent:true, opacity:0.4, clearcoat:1, clearcoatRoughness:0.1 }));
+    m.position.copy(slime.pos).addScaledVector(dir, 0.9).add(V3(rand(-0.2,0.2),1.1+i*0.12,rand(-0.2,0.2)));
+    m.userData.phase = rand(0,TAU);
+    m.userData.rise = rand(0.35,0.6);
+    scene.add(m);
+    bubbles.push(m);
+    regInteractive(m, 'bubble', '泡泡');
+  }
+  AU.tone(700, 0.18, 'sine', 0.08, 1200);
+  toast('🫧 呼——吹出一串泡泡！点泡泡可以戳破', false, 2000);
+}
+function popBubble(obj){
+  const i = bubbles.indexOf(obj);
+  if(i<0) return;
+  bubbles.splice(i,1);
+  const j = interactables.indexOf(obj);
+  if(j>=0) interactables.splice(j,1);
+  scene.remove(obj);
+  AU.pop();
+  spawnSparkles(obj.position, 5, 0xbfe6ff);
+  addMood(1);
+}
+
+/* --- 风筝 --- */
+let kite = null;
+{
+  const g = new THREE.Group();
+  const kiteMat = new THREE.MeshStandardMaterial({ color:0xff6b8f, side:THREE.DoubleSide, roughness:0.6 });
+  const sparMat = new THREE.MeshStandardMaterial({ color:0x8a5a30, roughness:1 });
+  const diamond = new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.85), kiteMat);
+  diamond.rotation.z = Math.PI/4; diamond.position.y = 0.1;
+  const sparV = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.9,0.02), sparMat);
+  sparV.position.y = 0.1;
+  const sparH = new THREE.Mesh(new THREE.BoxGeometry(0.66,0.02,0.02), sparMat);
+  sparH.position.y = 0.1;
+  const tail1 = new THREE.Mesh(new THREE.PlaneGeometry(0.12,0.12), kiteMat); tail1.position.set(0.1,-0.45,0); tail1.rotation.z = 0.6;
+  const tail2 = tail1.clone(); tail2.position.set(-0.08,-0.72,0); tail2.rotation.z = -0.5;
+  const tail3 = tail1.clone(); tail3.position.set(0.09,-0.98,0); tail3.rotation.z = 0.4;
+  g.add(diamond, sparV, sparH, tail1, tail2, tail3);
+  const stakeX = 10.5, stakeZ = 2.5;
+  const stakeY = terrainHeight(stakeX, stakeZ);
+  g.position.set(stakeX, stakeY+0.95, stakeZ);
+  g.rotation.z = 0.25;
+  shadowify(g);
+  scene.add(g);
+  kite = { group:g, stake:V3(stakeX, stakeY+0.05, stakeZ), state:'ground', t:0, trick:0, rest:g.position.clone() };
+  regInteractive(g, 'kite', '风筝');
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([kite.stake.clone(), g.position.clone()]),
+    new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.5 })
+  );
+  scene.add(line);
+  kite.line = line;
+}
+
+/* ================================================================
    史莱姆本体
 ================================================================ */
 const SLIME_COLORS = [0x8df5d3, 0xffb7d0, 0xa8d8ff, 0xffe08a, 0xd2b4ff, 0xbef0a8];
@@ -1254,6 +1422,7 @@ const slime = {
   pokeTimes: [],
   sleepy: false, sleepT: 0,
   sitFire: false,
+  fishT: 0, flip: 0,
   colorIdx: 0,
 };
 scene.add(slime.group);
@@ -1714,12 +1883,30 @@ function completeTask(id){
     S.celebrated = true;
     setTimeout(celebrate, 1200);
   }
+  saveGame();
   updateTaskHint();
 }
 function updateTaskHint(){
   const next = TASKS.find(t=>!doneTasks.has(t.id));
   ui.taskHint.textContent = next ? next.hint : '🎉 郊游圆满！和史莱姆玩吧';
 }
+function saveGame(){
+  try{ localStorage.setItem('outing_save', JSON.stringify({
+    stars:S.stars, mood:Math.round(S.mood), done:[...doneTasks]
+  })); }catch(e){}
+}
+function loadGame(){
+  try{
+    const sv = JSON.parse(localStorage.getItem('outing_save')||'null');
+    if(sv){
+      (sv.done||[]).forEach(id=>{ if(TASKS.some(t=>t.id===id)) doneTasks.add(id); });
+      S.stars = clamp(sv.stars||0, 0, 5);
+      S.mood = clamp(sv.mood||70, 20, 100);
+      ui.starRow.textContent = `⭐ ${S.stars} / 5`;
+    }
+  }catch(e){}
+}
+loadGame();
 updateTaskHint();
 
 function celebrate(){
@@ -1942,6 +2129,11 @@ function handleAction(hit){
   else if(t==='butterfly') actionButterfly(hit.obj);
   else if(t==='frog') actionFrog();
   else if(t==='snowman') actionSnowman();
+  else if(t==='tramp') actionTramp();
+  else if(t==='fishspot') actionFish();
+  else if(t==='jar') actionJar();
+  else if(t==='bubble') popBubble(hit.obj);
+  else if(t==='kite') actionKite();
 }
 
 /* --- 各交互动作 --- */
@@ -2105,6 +2297,38 @@ function actionSnowman(){
   addMood(5);
   toast('⛄ 雪人跟你挥挥手！');
 }
+function actionTramp(){
+  slime.autoAction = null;
+  slime.target = { x:trampoline.x, z:trampoline.z };
+  if(slime.state!=='grab') slime.state = 'hop';
+  toast('🤸 冲向蹦床！');
+}
+function actionFish(){
+  if(slime.state==='fish'){ toast('🎣 正在钓鱼，安静～'); return; }
+  slime.autoAction = 'fish';
+  slime.target = { x:fishSpot.x, z:fishSpot.z };
+  if(slime.state!=='grab') slime.state = 'hop';
+  toast('🎣 去码头钓鱼咯！');
+}
+function actionJar(){
+  slime.autoAction = 'bubbles';
+  slime.target = { x:bubbleJar.position.x+0.7, z:bubbleJar.position.z+0.4 };
+  if(slime.state!=='grab') slime.state = 'hop';
+  toast('🫧 史莱姆跑去拿泡泡瓶咯！');
+}
+function actionKite(){
+  if(kite.state==='ground'){
+    kite.state = 'fly'; kite.t = 0; kite.trick = 0;
+    AU.fly();
+    toast('🪁 风筝飞起来咯！再点一下让它翻跟头', true);
+    addMood(3);
+  } else if(kite.state==='fly'){
+    kite.trick = 1.2;
+    AU.boing(1.7);
+    toast('🪁 翻跟头！');
+    addMood(1);
+  }
+}
 
 /* --- 点击地面/水面移动 --- */
 function commandMove(point, isWater){
@@ -2242,6 +2466,37 @@ function updateSlime(dt){
     return;
   }
 
+  /* 钓鱼（坐在码头尽头） */
+  if(slime.state==='fish'){
+    slime.fishT -= dt;
+    const ry = slime.group.rotation.y;
+    const sx = slime.pos.x + Math.sin(ry)*0.45;
+    const sz = slime.pos.z + Math.cos(ry)*0.45;
+    const pa = fishingLine.geometry.attributes.position;
+    pa.array[0]=sx; pa.array[1]=slime.pos.y+0.95; pa.array[2]=sz;
+    pa.array[3]=sx-0.45; pa.array[4]=WATER_Y+0.05+Math.sin(S.time*3)*0.02; pa.array[5]=sz;
+    pa.needsUpdate = true;
+    if(slime.fishT<=0){
+      slime.state = 'idle';
+      fishingLine.visible = false;
+      if(!fish.active){
+        fish.active = true; fish.t = 0;
+        fish.from.set(sx-0.4, WATER_Y-0.15, sz);
+        fish.to.set(sx+rand(0.2,0.8), WATER_Y-0.15, sz+rand(-0.4,0.4));
+        fish.group.visible = true;
+      }
+      AU.splash(0.9);
+      addMood(8);
+      spawnSparkles(slime.pos.clone().add(V3(-0.6,0.5,0)), 8);
+      spawnHearts(slime.pos.clone().add(V3(0,1.3,0)), 2);
+      toast('🎣 钓到一条大鱼！今晚加餐！', true);
+    }
+    updateFace(dt);
+    applySlimeTransform(dt);
+    blobShadow.visible = false;
+    return;
+  }
+
   /* 跳舞 */
   if(slime.danceT>0){
     slime.danceT -= dt;
@@ -2327,6 +2582,8 @@ function updateSlime(dt){
     }
     slime.grounded = true;
     slime.vel.y = 0;
+    slime.flip = 0;
+    slimeBody.rotation.x = 0;
 
     /* 特殊地面 */
     if(g2.kind==='pad'){
@@ -2345,6 +2602,16 @@ function updateSlime(dt){
       completeTask('boat');
       addMood(8);
       toast('⛵ 登船！环湖兜风咯～ 点小船或按空格下船', true, 2600);
+    } else if(g2.kind==='tramp'){
+      // 蹦床：越弹越高，弹得高会翻跟头
+      const bounce = clamp(impact*0.82+4.5, 9, 15.5);
+      slime.vel.y = bounce;
+      slime.grounded = false;
+      AU.boing(rand(1,1.3));
+      slime.jig = 0.8;
+      addMood(1);
+      if(bounce>11.5){ slime.flip = 1.1; slime.group.rotation.x = 0; }
+      trampoline.dip = 0.25;
     } else if(g2.kind==='mush' && impact>1){
       slime.vel.y = 13;
       slime.grounded = false;
@@ -2354,6 +2621,12 @@ function updateSlime(dt){
     }
   } else if(slime.pos.y > floor+0.05){
     slime.grounded = false;
+  }
+
+  /* 空中翻跟头（蹦床高弹触发） */
+  if(!slime.grounded && slime.flip>0){
+    slime.flip -= dt;
+    slimeBody.rotation.x -= dt*8;
   }
 
   /* 状态机 */
@@ -2389,6 +2662,18 @@ function updateSlime(dt){
           addMood(8);
           toast('🐰 小兔子吃到了胡萝卜，成为朋友啦！', true);
           spawnHearts(rabbit.pos.clone().add(V3(0,0.8,0)), 3);
+        }
+        else if(act==='fish'){
+          slime.state = 'fish';
+          slime.fishT = rand(2.5,4.5);
+          slime.heading = -Math.PI/2;   // 面朝湖面
+          fishingLine.visible = true;
+          AU.tone(880, 0.08, 'sine', 0.06);
+          toast('🤫 嘘——安静，鱼要上钩了…', false, 1800);
+        }
+        else if(act==='bubbles'){
+          slime.heading = Math.atan2(bubbleJar.position.x-slime.pos.x, bubbleJar.position.z-slime.pos.z);
+          setTimeout(blowBubbles, 300);
         }
         else if(act==='swim'){ /* 已在水边，下一帧浮力接管 */ }
       } else if(inWaterNow){
@@ -2847,6 +3132,53 @@ function updateFacilities(dt){
     if(snowman.waveT<=0) snowman.armR.rotation.z = -1.1;
   }
 
+  /* 蹦床面下陷回弹 */
+  if(trampoline.dip>0) trampoline.dip = Math.max(0, trampoline.dip-dt*1.4);
+  trampoline.mat.position.y = 0.55 - Math.sin(trampoline.dip*12)*trampoline.dip*0.3;
+
+  /* 泡泡漂浮 */
+  for(let i=bubbles.length-1;i>=0;i--){
+    const b = bubbles[i];
+    b.userData.phase += dt*2;
+    b.position.y += b.userData.rise*dt;
+    b.position.x += Math.sin(b.userData.phase)*dt*0.25;
+    b.position.z += Math.cos(b.userData.phase*0.8)*dt*0.25;
+    b.scale.setScalar(1+Math.sin(b.userData.phase*3)*0.06);
+    if(b.position.y>8){
+      const j = interactables.indexOf(b);
+      if(j>=0) interactables.splice(j,1);
+      scene.remove(b);
+      bubbles.splice(i,1);
+    }
+  }
+
+  /* 风筝 */
+  if(kite.state==='fly'){
+    kite.t += dt/9;
+    kite.group.position.set(
+      kite.stake.x + Math.sin(kite.t*Math.PI*4)*2.2,
+      kite.stake.y + 3.2 + Math.sin(kite.t*Math.PI*6)*1.0 + Math.sin(kite.t*TAU)*0.35,
+      kite.stake.z + Math.cos(kite.t*Math.PI*2.8)*2.0
+    );
+    kite.group.rotation.y += dt*2;
+    kite.group.rotation.z = 0.25 + Math.sin(kite.t*20)*0.15;
+    if(kite.trick>0){ kite.trick -= dt; kite.group.rotation.y += dt*14; }
+    if(kite.t>=1){
+      kite.state = 'ground';
+      kite.group.position.copy(kite.rest);
+      kite.group.rotation.set(0,0,0.25);
+      toast('🪁 风筝落回草地啦');
+    }
+  } else {
+    kite.group.position.y = kite.rest.y + Math.sin(S.time*1.3)*0.05;
+    kite.group.rotation.z = 0.25+Math.sin(S.time*0.9)*0.06;
+  }
+  const kpa = kite.line.geometry.attributes.position;
+  kpa.array[3] = kite.group.position.x;
+  kpa.array[4] = kite.group.position.y-0.2;
+  kpa.array[5] = kite.group.position.z;
+  kpa.needsUpdate = true;
+
   /* 彩虹 */
   if(rainbow.on){
     rainbow.t += dt;
@@ -3014,6 +3346,7 @@ function tick(){
   S.time += dt;
   waterUniforms.uTime.value = S.time;
   waterUniforms.uCam.value.copy(camera.position);
+  if(slime.state!=='fish') fishingLine.visible = false;
 
   updateSlime(dt);
   updateAnimals(dt);
