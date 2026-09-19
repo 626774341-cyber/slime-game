@@ -543,8 +543,9 @@ function injectPetUI() {
   // 可见版本徽标：一眼确认运行的是哪个版本
   const ver = document.createElement('div');
   ver.id = 'petVer';
-  ver.textContent = '桌宠 v1.5.0';
+  ver.textContent = '桌宠 v1.5.1';
   document.body.appendChild(ver);
+  window.__petVersion = (v) => { ver.textContent = '桌宠 ' + v; };
 
   // —— 逗猫棒开关 + 取名入口（放进互动抽屉最前面，样式与其他按钮统一）——
   const catBtn = document.createElement('button');
@@ -609,6 +610,7 @@ function createWindow() {
             new Date().toISOString() + ' ' + String(err) + '\n');
         } catch { }
       });
+    run("window.__petVersion && window.__petVersion(" + JSON.stringify(app.getVersion()) + ")");
     const n = (loadSettings().name || '');
     if (n) setTimeout(() => run('window.__petSetName && window.__petSetName(' + JSON.stringify(n) + ')'), 400);
   });
