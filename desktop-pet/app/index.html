@@ -861,22 +861,9 @@ const EMOJI_HAT = {
   '🌵': { y: 1.38, s: 0.9 },    // 仙人掌：主干顶
 };
 function updateHatHeight() {
-  if (slimeShapeIdx >= 0 && slimeShapeIdx < 4) {
-    const fit = HAT_FIT[slimeShapeIdx];
-    hatGroup.position.y = fit.y;
-    hatGroup.scale.setScalar(fit.s);
-    return;
-  }
-  if (slimeShapeIdx === -1 && currentEmojiName && EMOJI_HAT[currentEmojiName]) {
-    const ef = EMOJI_HAT[currentEmojiName];
-    hatGroup.position.y = ef.y;
-    hatGroup.scale.setScalar(ef.s);
-    return;
-  }
-  // 兜底：用包围盒
   slimeMesh.geometry.computeBoundingBox();
-  hatGroup.position.y = slimeMesh.position.y + slimeMesh.geometry.boundingBox.max.y - 0.05;
-  hatGroup.scale.setScalar(1.0);
+  const bb = slimeMesh.geometry.boundingBox;
+  hatGroup.position.y = 0.68 + bb.max.y - 0.06;
 }
 
 /* ================= 换色系统 ================= */
