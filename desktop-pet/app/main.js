@@ -256,5 +256,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => { createWindow(); createTray(); });
+// macOS：再次打开 App（或点 Dock）时，把隐藏中的桌宠唤出来
+app.on('activate', () => {
+  if (win) { win.show(); win.focus(); } else createWindow();
+});
 app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => { /* 托盘常驻，不自动退出 */ });
