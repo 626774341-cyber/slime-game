@@ -147,8 +147,8 @@ function injectPetUI() {
     '  gap: 6px !important; opacity: .16; transition: opacity .25s ease; }',
     '#moodCard:hover { opacity: 1; }',
     '#moodBar { width: 90px !important; }',
-    '/* 逗猫棒模式：光标变成逗猫棒 */',
-    'body.teaser, body.teaser * { cursor: url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2732%27 height=%2732%27><line x1=%274%27 y1=%2728%27 x2=%2719%27 y2=%2713%27 stroke=%27%23555%27 stroke-width=%273%27 stroke-linecap=%27round%27/><circle cx=%2722%27 cy=%2710%27 r=%275%27 fill=%27%23ffd45e%27 stroke=%27%23e0a800%27 stroke-width=%272%27/></svg>") 22 10, auto; }',
+    '/* 逗猫棒模式：隐藏系统光标，用画面里的逗猫棒代替 */',
+    'body.teaser, body.teaser * { cursor: none !important; }',
     '#catTeaser.active { background: #ffe9a8 !important; }',
     '/* 右上角统一控制行：⠿ ✕ 声音 昼夜 天气 爪印 */',
     '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw, #dragMove {',
@@ -404,6 +404,8 @@ function injectPetUI() {
     return dx * dx + dy * dy <= 1;
   }
   window.__petCursor = (x, y) => {
+    // 逗猫棒模式下强制可互动 + 光标由画面绘制成逗猫棒
+    if (catMode || altHeld) { if (window.petApi) window.petApi.setHover(true); return; }
     if (window.petApi) window.petApi.setHover(computeHover(x, y));
   };
 
@@ -470,12 +472,19 @@ function injectPetUI() {
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.283); ctx.fill();
       }
     }
-    // 逗猫棒光点
+    // 逗猫棒：画面里画一根会摇的逗猫棒（替代系统光标）
     if (catMode || altHeld) {
-      ctx.fillStyle = 'rgba(255,236,150,.35)';
-      ctx.beginPath(); ctx.arc(altX, altY, 13, 0, 6.283); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,190,.95)';
-      ctx.beginPath(); ctx.arc(altX, altY, 6, 0, 6.283); ctx.fill();
+      const sway = Math.sin(now * 0.006) * 6;
+      const tipX = altX + 10 + sway, tipY = altY - 14 + Math.cos(now * 0.005) * 4;
+      ctx.strokeStyle = 'rgba(150,100,60,.95)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(altX - 10, altY + 16); ctx.lineTo(tipX, tipY); ctx.stroke();
+      ctx.strokeStyle = 'rgba(200,200,210,.8)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(tipX + 4 + sway * 0.5, tipY + 10); ctx.stroke();
+      const tw2 = 0.7 + 0.3 * Math.sin(now * 0.01);
+      ctx.fillStyle = 'rgba(255,220,120,' + (0.95 * tw2).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(tipX + 4 + sway * 0.5, tipY + 10, 6, 0, 6.283); ctx.fill();
+      ctx.fillStyle = 'rgba(255,240,180,.4)';
+      ctx.beginPath(); ctx.arc(tipX + 4 + sway * 0.5, tipY + 10, 11, 0, 6.283); ctx.fill();
     }
     // 爱心彩糖
     for (let i = treats.length - 1; i >= 0; i--) {

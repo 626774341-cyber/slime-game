@@ -1579,7 +1579,7 @@ function updateBall(dt) {
   ball.g.rotation.z -= ball.vel.x * dt * 2.4;
   // 史莱姆靠近就把球踢飞
   const d = Math.hypot(ball.pos.x - slime.pos.x, ball.pos.z - slime.pos.z);
-  if (ball.mode === 'free' && d < 0.95 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
+  if (ball.mode === 'free' && d < 1.35 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
     kickCd = 0.5;
     const kx = (ball.pos.x - slime.pos.x) / (d || 1);
     const kz = (ball.pos.z - slime.pos.z) / (d || 1);
@@ -2679,10 +2679,18 @@ function updateGameLogic(dt, t) {
       S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
     const hasFood = foods.some(f => !f.eaten && f.resting);
     const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
-    if (!hasFood && bd > 1.1 && bd < 6 && S.hopCooldown <= 0) {
+    if (!hasFood && bd > 1.35 && bd < 8 && S.hopCooldown <= 0) {
+      // 卡死看门狗：追了 5 秒还没接近到能踢的距离 → 球多半卡在死角，轻推一把让它滚出来
+      if (!S.chaseWatch) S.chaseWatch = t;
+      if (t - S.chaseWatch > 5) {
+        const a = Math.random() * Math.PI * 2;
+        ball.vel.x = Math.cos(a) * 3.2; ball.vel.z = Math.sin(a) * 3.2; ball.vel.y = 3.5;
+        spawnDebris(ball.pos, 4, SPARKLE_COLORS, 5);
+        S.chaseWatch = t;
+      }
       S.hopCooldown = 1.0;
       startHops(ball.pos);
-    }
+    } else if (bd <= 1.35) S.chaseWatch = 0;
   }
 
   // --- 待机小动作：开心小跳 / 难过叹气 / 夜晚打瞌睡 ---
