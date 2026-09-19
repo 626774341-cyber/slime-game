@@ -4,12 +4,12 @@ const { app, BrowserWindow } = require('electron');
 let win;
 
 function injectPetUI() {
-  // —— 以下代码运行在页面里（DOM 已就绪）——
+  // —— 以下代码运行在页面里（模块脚本已执行完，window.__pet 可用）——
   const st = document.createElement('style');
   st.textContent = [
-    '/* 柔和天空光晕：让小岛不干贴在桌面上 */',
-    'html, body { background: radial-gradient(ellipse at 50% 40%, rgba(191,228,247,.5) 0%, rgba(191,228,247,0) 68%) !important; }',
+    'html, body { background: transparent !important; }',
     '#title, #hints, #moodCard, #starHud, #photoBtn { display: none !important; }',
+    '#petFx { position: fixed; inset: 0; z-index: 2; pointer-events: none; }',
     '/* 右上角统一控制行：✕ 声音 昼夜 天气 爪印（实体白钮，不透明） */',
     '#petClose, #mute, #nightBtn, #weatherBtn, #petPaw {',
     '  position: fixed !important; top: 10px !important; right: auto !important; left: auto !important;',
@@ -41,6 +41,88 @@ function injectPetUI() {
   ].join('\n');
   document.head.appendChild(st);
 
+  // —— 天气粒子层：整窗漂浮，随游戏天气切换（晴=光点/萤火虫，雨=雨丝，雪=雪花）——
+  const fx = document.createElement('canvas');
+  fx.id = 'petFx';
+  document.body.appendChild(fx);
+  const ctx = fx.getContext('2d');
+
+  // —— 相机贴合：不管窗口多大、缩放到哪，小岛四个角恒定可见 ——
+  function cornerR() { return Math.sqrt(2) * 5.25 + 0.35; }        // 岛半对角 + 余量
+  function fitDist() {
+    const cam = pet.camera;
+    const vF = cam.fov * Math.PI / 180;
+    const hF = 2 * Math.atan(Math.tan(vF / 2) * cam.aspect);
+    return Math.max(cornerR() / Math.tan(vF / 2), cornerR() / Math.tan(hF / 2)) + 0.9;
+  }
+  function fitView(force) {
+    const cam = pet.camera, ctl = pet.controls;
+    ctl.maxDistance = fitDist();
+    const dir = cam.position.clone().sub(ctl.target).normalize();
+    let d = cam.position.distanceTo(ctl.target);
+    if (force || d > ctl.maxDistance) d = ctl.maxDistance;
+    cam.position.copy(ctl.target).addScaledVector(dir, d);
+  }
+  function sizeFx() { fx.width = innerWidth; fx.height = innerHeight; }
+  function onResize() { sizeFx(); fitView(false); }
+  sizeFx();
+  fitView(true);                                   // 启动即完整展示全岛
+  window.addEventListener('resize', onResize);
+
+  // 粒子
+  const newMote = () => ({ x: Math.random() * fx.width, y: Math.random() * fx.height,
+    r: 1 + Math.random() * 2.4, vy: 8 + Math.random() * 14, tw: Math.random() * 6.28, sp: 0.4 + Math.random() * 0.8 });
+  const newDrop = () => ({ x: Math.random() * fx.width, y: Math.random() * fx.height,
+    v: 520 + Math.random() * 320, len: 12 + Math.random() * 10 });
+  const newFlake = () => ({ x: Math.random() * fx.width, y: Math.random() * fx.height,
+    v: 40 + Math.random() * 55, r: 1.4 + Math.random() * 2, ph: Math.random() * 6.28 });
+  let motes = Array.from({ length: 42 }, newMote);
+  let drops = Array.from({ length: 80 }, newDrop);
+  let flakes = Array.from({ length: 60 }, newFlake);
+  let sunny = 1, rain = 0, snow = 0, last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    const mode = pet.weather ? pet.weather.mode : 0;
+    const night = pet.dnState ? pet.dnState.v : 0;
+    sunny += ((mode === 0 ? 1 : 0) - sunny) * Math.min(1, dt * 3);
+    rain += ((mode === 1 ? 1 : 0) - rain) * Math.min(1, dt * 3);
+    snow += ((mode === 2 ? 1 : 0) - snow) * Math.min(1, dt * 3);
+    ctx.clearRect(0, 0, fx.width, fx.height);
+    if (sunny > 0.02) {                               // 晴天：暖色光点（夜里变萤火虫）
+      for (const m of motes) {
+        m.y -= m.vy * dt; m.x += Math.sin(now * 0.0004 * m.sp + m.tw) * 14 * dt;
+        if (m.y < -8) { m.y = fx.height + 8; m.x = Math.random() * fx.width; }
+        if (m.x < -8) m.x = fx.width + 8; else if (m.x > fx.width + 8) m.x = -8;
+        const tw = 0.4 + 0.3 * Math.sin(now * 0.002 * m.sp + m.tw);
+        ctx.globalAlpha = sunny * tw * (night > 0.5 ? 0.9 : 0.65);
+        ctx.fillStyle = night > 0.5 ? '#d6ff8f' : '#ffe9a8';
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.283); ctx.fill();
+      }
+    }
+    if (rain > 0.02) {                                // 雨天：整窗雨丝
+      ctx.strokeStyle = 'rgba(170,205,240,' + (0.5 * rain).toFixed(3) + ')';
+      ctx.lineWidth = 1.4; ctx.beginPath();
+      for (const d of drops) {
+        d.y += d.v * dt; d.x += d.v * 0.12 * dt;
+        if (d.y > fx.height + 20) { d.y = -20; d.x = Math.random() * fx.width; }
+        ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.v * 0.02, d.y - d.len);
+      }
+      ctx.stroke();
+    }
+    if (snow > 0.02) {                                // 雪天：整窗雪花
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.85 * snow).toFixed(3) + ')';
+      for (const f of flakes) {
+        f.y += f.v * dt; f.x += Math.sin(now * 0.001 + f.ph) * 22 * dt;
+        if (f.y > fx.height + 6) { f.y = -6; f.x = Math.random() * fx.width; }
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.283); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
   const strip = document.createElement('div');
   strip.id = 'dragStrip';
   strip.title = '按住这里可以拖动桌宠';
@@ -63,8 +145,8 @@ function injectPetUI() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 520,
-    height: 460,
+    width: 700,
+    height: 600,
     minWidth: 320,
     minHeight: 280,
     transparent: true,
