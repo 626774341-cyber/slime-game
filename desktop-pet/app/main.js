@@ -1,8 +1,8 @@
 // 史莱姆桌宠：无边框透明置顶窗口，箱庭小岛浮在桌面上
-// 托盘常驻：显示/隐藏、换地图、退出；✕ = 隐藏到托盘
+// 托盘常驻：显示/隐藏、换地图、退出；✕ = 关闭桌宠
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen } = require('electron');
 
-let win = null, tray = null, quitting = false, moveTimer = null;
+let win = null, tray = null, quitting = false;
 
 // 程序化画一个史莱姆蓝的圆形托盘图标（16~18px 足够）
 function makeTrayIcon() {
@@ -41,18 +41,6 @@ function run(js) {
   if (win && !win.isDestroyed()) win.webContents.executeJavaScript(js).catch(() => {});
 }
 
-// 窗口贴近屏幕边缘时，让史莱姆"扒边探头"
-function sendEdge() {
-  if (!win || win.isDestroyed() || !win.isVisible()) return;
-  const b = win.getBounds(), wa = screen.getPrimaryDisplay().workArea;
-  let dir = null;
-  if (b.x - wa.x <= 40) dir = 'left';
-  else if (wa.x + wa.width - (b.x + b.width) <= 40) dir = 'right';
-  else if (b.y - wa.y <= 40) dir = 'top';
-  else if (wa.y + wa.height - (b.y + b.height) <= 40) dir = 'bottom';
-  run('window.__petEdge && window.__petEdge(' + JSON.stringify(dir) + ')');
-}
-
 function injectPetUI() {
   // —— 以下代码运行在页面里（模块脚本已执行完，window.__pet 可用）——
   const pet = window.__pet;
@@ -82,13 +70,13 @@ function injectPetUI() {
     '/* 顶部拖拽条：按住移动桌宠 */',
     '#dragStrip { position: fixed; top: 0; left: 0; right: 0; height: 24px; z-index: 30;',
     '  -webkit-app-region: drag; cursor: move; }',
-    '/* 互动抽屉：默认收起，点右上角爪印从按钮组下方滑出 */',
+    '/* 互动抽屉：默认收起，点右上角爪印从按钮组下方滑出（无面板底色，按钮各自悬浮） */',
     '#toolbar { flex-direction: row !important; flex-wrap: wrap !important; justify-content: flex-end !important;',
     '  left: auto !important; right: 10px !important; top: 52px !important; bottom: auto !important;',
-    '  width: max-content !important; max-width: 96% !important; gap: 5px !important; padding: 8px !important;',
+    '  width: max-content !important; max-width: 96% !important; gap: 6px !important; padding: 0 !important;',
     '  transform: translateY(-10px) !important;',
     '  opacity: 0; pointer-events: none; animation: none !important; transition: all .25s ease;',
-    '  background: rgba(255,255,255,.96) !important; }',
+    '  background: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }',
     'body.pet-open #toolbar { opacity: 1; pointer-events: auto; transform: translateY(0) !important; }',
     '.tool { width: 40px !important; height: 40px !important; font-size: 20px !important; }'
   ].join('\n');
@@ -191,6 +179,16 @@ function injectPetUI() {
       }
     }
     ctx.globalAlpha = 1;
+    // —— 地图边缘探头：史莱姆走到小岛边缘时，整块微微向那边倾斜张望 ——
+    const sp = pet.slime.pos, B = 4.3, m = 1.3;
+    let prx = 0, prz = 0, ptx = 0, pty = 0;
+    if (sp.x > B - m) { const k = (sp.x - (B - m)) / m; prz = 2.4 * k; ptx = 8 * k; }
+    else if (sp.x < -(B - m)) { const k = (-(B - m) - sp.x) / m; prz = -2.4 * k; ptx = -8 * k; }
+    if (sp.z > B - m) { const k = (sp.z - (B - m)) / m; prx = -3.2 * k; pty = 7 * k; }
+    else if (sp.z < -(B - m)) { const k = (-(B - m) - sp.z) / m; prx = 3.2 * k; pty = -7 * k; }
+    const cEl = document.getElementById('c');
+    cEl.style.transform = 'translate(' + ptx.toFixed(1) + 'px,' + pty.toFixed(1) + 'px) rotateX(' +
+      prx.toFixed(2) + 'deg) rotateZ(' + prz.toFixed(2) + 'deg)';
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -203,7 +201,7 @@ function injectPetUI() {
   const closeBtn = document.createElement('div');
   closeBtn.id = 'petClose';
   closeBtn.textContent = '✕';
-  closeBtn.title = '隐藏桌宠（顶栏托盘图标可找回）';
+  closeBtn.title = '关闭桌宠';
   closeBtn.addEventListener('click', () => window.close());
   document.body.appendChild(closeBtn);
 
@@ -245,13 +243,6 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     win.webContents.executeJavaScript('(' + injectPetUI.toString() + ')()');
   });
-  win.on('close', (e) => {
-    if (!quitting) { e.preventDefault(); win.hide(); }   // ✕ = 隐藏到托盘
-  });
-  win.on('move', () => {
-    clearTimeout(moveTimer);
-    moveTimer = setTimeout(sendEdge, 120);
-  });
   win.on('closed', () => { win = null; });
 }
 
@@ -261,4 +252,4 @@ app.on('activate', () => {
   if (win) { win.show(); win.focus(); } else createWindow();
 });
 app.on('before-quit', () => { quitting = true; });
-app.on('window-all-closed', () => { /* 托盘常驻，不自动退出 */ });
+app.on('window-all-closed', () => app.quit());   // ✕ 关闭即退出（托盘菜单里还有显示/隐藏）
