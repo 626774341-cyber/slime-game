@@ -1,6 +1,6 @@
 // 史莱姆桌宠：无边框透明置顶窗口，箱庭小岛浮在桌面上
 // 托盘常驻：显示/隐藏、换地图、取名、开机自启、退出；点击穿透（不在小岛/按钮上时）
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -111,6 +111,12 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
+ipcMain.handle('pet:savefile', async (e, name, buf) => {
+  const r = await dialog.showSaveDialog(win, { defaultPath: name });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, Buffer.from(buf));
+  return r.filePath;
+});
 ipcMain.on('pet:setname', (e, n) => {
   const st = loadSettings();
   st.name = String(n || '').trim().slice(0, 6);

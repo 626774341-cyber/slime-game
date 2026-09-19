@@ -2883,8 +2883,136 @@ window.__petPickGround = (sx, sy) => {
   return null;
 };
 window.__pet = { weather, dnState, camera, controls, world, slime, slimeGroup, mood,
-  startHops, startDance, say, pickGround: window.__petPickGround };
+  startHops, startDance, say, spawnBaby, spawnFood, pickGround: window.__petPickGround };
 window.__petToggleMap = () => { world.visible = !world.visible; return world.visible; };
+</script>
+
+<script>
+// —— 五大拖喂玩法（独立于游戏模块，通过 window.__pet 桥接）——
+(function () {
+  const P = () => window.__pet;
+  const $ = (id) => document.getElementById(id);
+  let eatenCount = 0, lastFile = null, lastFedName = '';
+
+  // 创建提示条
+  const tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;bottom:84px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(35,58,82,.88);color:#fff;font-size:13px;padding:8px 18px;border-radius:999px;' +
+    'opacity:0;transition:opacity .3s;pointer-events:none;z-index:50;white-space:nowrap;';
+  document.body.appendChild(tip);
+  let tipT = null;
+  function petTip(msg) {
+    tip.textContent = msg; tip.style.opacity = '1';
+    clearTimeout(tipT); tipT = setTimeout(() => tip.style.opacity = '0', 2400);
+  }
+
+  // 创建举牌
+  const sign = document.createElement('div');
+  sign.id = 'petSignHolder';
+  sign.style.cssText = 'position:fixed;z-index:5;display:none;pointer-events:auto;cursor:pointer;' +
+    'background:rgba(255,255,255,.95);border-radius:10px;padding:5px;box-shadow:0 4px 14px rgba(60,90,140,.35);';
+  const signImg = document.createElement('img');
+  signImg.style.cssText = 'display:block;max-width:120px;max-height:90px;border-radius:6px;';
+  sign.appendChild(signImg);
+  document.body.appendChild(sign);
+  let signUrls = [], signIdx = 0;
+  sign.addEventListener('click', () => {
+    if (signUrls.length < 2) return;
+    signIdx = (signIdx + 1) % signUrls.length;
+    signImg.src = signUrls[signIdx];
+  });
+
+  // 拖喂计数提示
+  let dropCount = 0;
+  window.addEventListener('dragover', (e) => { e.preventDefault(); });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const dt = e.dataTransfer; if (!dt) return;
+    const f = dt.files && dt.files[0];
+    if (!f) return;
+    dropCount++;
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    const p = P();
+    // 反馈UI
+    if (p && p.slime) { p.slime.sq.x = 0.35; p.slime.moodT = 1; }
+    if (p && p.mood) p.mood.happy = Math.min(100, p.mood.happy + 12);
+    if (typeof spawnTreats === 'function') { /* 由下方处理 */ }
+    // === 1. 拖音频 → 学节奏 ===
+    if (['mp3','wav','m4a','aac','flac','ogg'].includes(ext)) {
+      petTip('🎵 正在学这首歌的节奏…');
+      f.arrayBuffer().then(buf => {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        return ac.decodeAudioData(buf);
+      }).then(ab => {
+        const d = ab.getChannelData(0), sr = ab.sampleRate;
+        const hop = Math.floor(sr / 20), env = [];
+        for (let i = 0; i + hop < d.length; i += hop) {
+          let e2 = 0; for (let j = 0; j < hop; j += 4) e2 += d[i+j] * d[i+j];
+          env.push(Math.sqrt(e2 / (hop/4)));
+        }
+        let peak = 0; for (const e2 of env) peak = Math.max(peak, e2);
+        const beats = []; let lastT = -9;
+        for (let i = 1; i < env.length - 1; i++) {
+          const t = i / 20;
+          if (env[i] > peak * 0.3 && env[i] >= env[i-1] && env[i] > env[i+1] && t - lastT > 0.15) { beats.push(t); lastT = t; }
+        }
+        window.__petBeats = beats.slice(0, 40);
+        petTip('🎵 学会了！点 💃 跳舞时它会按节奏唱！');
+      }).catch(() => petTip('这个音频学不会…'));
+      return;
+    }
+    // === 2. 拖文本 → 学说话 ===
+    if (['txt','md'].includes(ext)) {
+      f.text().then(t => {
+        const sents = t.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
+        if (sents.length) {
+          const line = sents[Math.floor(Math.random()*sents.length)];
+          window.__petPhrase = line;
+          petTip('📖 学会了一句：「' + line + '」');
+        } else petTip('这里没有能学的话…');
+      });
+      return;
+    }
+    // === 3. 拖文件夹 → 生蛋 ===
+    if (f.size === 0 && !f.type) {
+      petTip('🥚 孵化中…');
+      const p = P();
+      if (p && p.spawnBaby) setTimeout(() => { p.spawnBaby(); petTip('🐣 小史莱姆出生了！'); }, 800);
+      return;
+    }
+    // === 4. 拖图片 → 举牌牌 ===
+    if (['png','jpg','jpeg','gif','webp','bmp'].includes(ext)) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        signUrls.push(reader.result);
+        if (signUrls.length > 6) signUrls.shift();
+        signIdx = signUrls.length - 1;
+        signImg.src = signUrls[signIdx];
+        sign.style.display = 'block';
+        petTip('🖼️ 举在头顶展示啦！点牌子换一张');
+      };
+      reader.readAsDataURL(f);
+      return;
+    }
+    // === 5. 通用吃 ===
+    petTip('😋 ' + f.name + ' 好吃！');
+    lastFile = f;
+    // === 吃撑打嗝 ===
+    if (dropCount % 5 === 0 && lastFile) {
+      setTimeout(() => {
+        petTip('嗝——吃太饱啦！');
+        if (window.petApi) {
+          window.petApi.saveFileAs(lastFile.name, lastFile).then(r => {
+            if (r) petTip('📦 帮你放回了：' + r.split('/').pop());
+          });
+        }
+      }, 600);
+    }
+  });
+
+  // 阻止浏览器打开拖入文件
+  window.addEventListener('dragenter', (e) => e.preventDefault());
+})();
 </script>
 </body>
 </html>
