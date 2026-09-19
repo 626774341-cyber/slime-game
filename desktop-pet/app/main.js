@@ -204,7 +204,10 @@ function injectPetUI() {
     '  z-index: 40; white-space: nowrap; }',
     '#petToast.show { opacity: 1; }',
     '.flyFile { position: fixed; z-index: 40; font-size: 30px; pointer-events: none;',
-    '  transition: all .6s cubic-bezier(.5,-0.3,.7,1); }'
+    '  transition: all .6s cubic-bezier(.5,-0.3,.7,1); }',
+    '/* 版本徽标 */',
+    '#petVer { position: fixed; bottom: 6px; left: 8px; z-index: 33; font-size: 10px;',
+    '  color: #7a97b0; opacity: .7; pointer-events: none; user-select: none; }'
   ].join('\n');
   document.head.appendChild(st);
 
@@ -284,7 +287,6 @@ function injectPetUI() {
     nameTag.textContent = petName;
     nameTag.style.display = petName ? 'block' : 'none';
   };
-  window.__petSetName((loadName = '') => '');
 
   // —— 逗猫棒：按住 Alt 甩鼠标，史莱姆追着光点跳 ——
   let altHeld = false, altX = 0, altY = 0, lastChase = 0;
@@ -528,6 +530,12 @@ function injectPetUI() {
   paw.title = '互动菜单';
   paw.addEventListener('click', () => document.body.classList.toggle('pet-open'));
   document.body.appendChild(paw);
+
+  // 可见版本徽标：一眼确认运行的是哪个版本
+  const ver = document.createElement('div');
+  ver.id = 'petVer';
+  ver.textContent = '桌宠 v1.4.0';
+  document.body.appendChild(ver);
 }
 
 function createWindow() {
@@ -562,7 +570,13 @@ function createWindow() {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.loadFile('index.html');
   win.webContents.on('did-finish-load', () => {
-    win.webContents.executeJavaScript('(' + injectPetUI.toString() + ')()');
+    win.webContents.executeJavaScript('(' + injectPetUI.toString() + ')()')
+      .catch(err => {
+        try {
+          fs.appendFileSync(path.join(app.getPath('userData'), 'pet-errors.log'),
+            new Date().toISOString() + ' ' + String(err) + '\n');
+        } catch { }
+      });
     const n = (loadSettings().name || '');
     if (n) setTimeout(() => run('window.__petSetName && window.__petSetName(' + JSON.stringify(n) + ')'), 400);
   });
