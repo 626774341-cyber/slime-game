@@ -46,8 +46,8 @@ function openNamingWindow() {
   if (nameWin) { nameWin.focus(); return; }
   const cur = (loadSettings().name || '').slice(0, 6);
   nameWin = new BrowserWindow({
-    width: 320, height: 140, resizable: false,
-    minimizable: false, maximizable: false,
+    width: 320, height: 140, frame: false, transparent: true, resizable: false,
+    minimizable: false, maximizable: false, show: false, skipTaskbar: true,
     title: '给史莱姆取名',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false }
   });
