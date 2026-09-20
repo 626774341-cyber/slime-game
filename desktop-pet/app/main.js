@@ -46,9 +46,9 @@ function openNamingWindow() {
   if (nameWin) { nameWin.focus(); return; }
   const cur = (loadSettings().name || '').slice(0, 6);
   nameWin = new BrowserWindow({
-    width: 320, height: 140, frame: false, transparent: true, resizable: false,
+    width: 300, height: 130, frame: false, transparent: true, resizable: false,
     minimizable: false, maximizable: false, show: false, skipTaskbar: true,
-    title: '给史莱姆取名',
+    backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false }
   });
   nameWin.loadFile('name.html', { query: { n: cur } });
@@ -686,7 +686,7 @@ function createWindow() {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#00000000',
     webPreferences: {
       backgroundThrottling: false,
       webSecurity: false,
