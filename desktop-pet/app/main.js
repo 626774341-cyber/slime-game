@@ -111,6 +111,7 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
+ipcMain.on('pet:openname', () => openNamingWindow());
 ipcMain.handle('pet:savefile', async (e, name, buf) => {
   const r = await dialog.showSaveDialog(win, { defaultPath: name });
   if (r.canceled || !r.filePath) return null;
@@ -651,7 +652,10 @@ function injectPetUI() {
       el.id = 'petNameTag';
       el.style.cssText = 'position:fixed;top:14px;left:12px;z-index:32;' +
         'padding:4px 14px;border-radius:999px;background:rgba(255,255,255,.92);color:#2c4a66;' +
-        'font-size:13px;box-shadow:0 2px 8px rgba(60,90,140,.3);pointer-events:none;';
+        'font-size:13px;box-shadow:0 2px 8px rgba(60,90,140,.3);cursor:pointer;user-select:none;';
+    el.addEventListener('click', () => { if (window.petApi) window.petApi.openNaming(); });
+    el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.06)'; });
+    el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
       document.body.appendChild(el);
     }
     el.textContent = '🏷️ ' + n;
