@@ -3078,13 +3078,14 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
       setTimeout(() => petTip('📖 咦…这个字好小，我慢慢研究…'), 2000);
       return;
     }
-    if (['txt','md'].includes(ext)) {
+    if (['txt','md','rtf','doc','docx'].includes(ext)) {
       f.text().then(t => {
         const sents = t.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
         if (sents.length) {
           const line = sents[Math.floor(Math.random()*sents.length)];
           window.__petPhrase = line;
-          petTip('📖 学会了一句：「' + line + '」');
+          petTip('📖 学会了一句！');
+          if (p && p.say) p.say(line);
         } else petTip('这里没有能学的话…');
       });
       return;
