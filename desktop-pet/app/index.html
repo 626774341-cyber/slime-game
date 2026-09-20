@@ -3008,15 +3008,23 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     const fileEmojiMap = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
       txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' };
     flyToMouth(e.clientX, e.clientY, fileEmojiMap[ext] || '📄');
+    // 🍽️ 偏食判定：最爱=更多爱心+欢呼，讨厌=摇头嫌弃，普通=正常吃
+    const taste = window.__petTaste || {};
+    const CATS = { png:'图片', jpg:'图片', jpeg:'图片', gif:'图片', webp:'图片', heic:'图片',
+      mp3:'音乐', wav:'音乐', m4a:'音乐', aac:'音乐', flac:'音乐', ogg:'音乐',
+      txt:'文本', md:'文本', js:'文本', json:'文本', html:'文本', css:'文本', py:'文本', ts:'文本',
+      zip:'压缩包', rar:'压缩包', '7z':'压缩包', tar:'压缩包', gz:'压缩包',
+      png2:'图片' };
+    const cat = CATS[ext] || '其他';
     // 0.5 秒后爱心迸发 + 果冻抖动
     setTimeout(() => {
       const s = slimeCenter();
-      burstHearts(s.x, s.y - 20, 8);
+      burstHearts(s.x, s.y - 20, cat === taste.like ? 14 : 8);
       if (p && p.slime) p.slime.sq.v += 5;
     }, 500);
     // 偏食反馈
     if (p && p.slime) { p.slime.sq.x = 0.35; p.slime.moodT = 1; }
-    if (p && p.mood) p.mood.happy = Math.min(100, p.mood.happy + 12);
+    if (p && p.mood) p.mood.happy = Math.min(100, p.mood.happy + (cat === taste.like ? 20 : 12));
     // === 1. 拖音频 → 学节奏 ===
     if (['mp3','wav','m4a','aac','flac','ogg'].includes(ext)) {
       petTip('🎵 正在学这首歌的节奏…');
