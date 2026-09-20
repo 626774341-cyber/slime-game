@@ -2967,6 +2967,13 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     const v = p.slimeGroup.position.clone(); v.y += 0.7; v.project(p.camera);
     return { x: (v.x*0.5+0.5)*innerWidth, y: (-v.y*0.5+0.5)*innerHeight };
   }
+  // —— 举牌持续跟随史莱姆 ——
+  setInterval(() => {
+    if (sign.style.display !== 'block' || !signUrls.length) return;
+    const s = slimeCenter();
+    sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
+    sign.style.top = (s.y - sign.offsetHeight - 12) + 'px';
+  }, 100);
   function flyToMouth(fx, fy, emoji) {
     const el = document.createElement('div');
     el.textContent = emoji;
@@ -3095,11 +3102,7 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
         sign.style.top = Math.max(s.y - 110, 60) + 'px';
         petTip('🖼️ 举在头顶展示啦！');
-        clearTimeout(sign._dismiss);
-        sign._dismiss = setTimeout(() => {
-          sign.style.opacity = '0';
-          setTimeout(() => { sign.style.display = 'none'; }, 400);
-        }, 6000);
+        petTip('🖼️ 举在头顶展示啦！跟随着它～');
       };
       reader.readAsDataURL(f);
       return;
@@ -3122,6 +3125,14 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
 
   // 阻止浏览器打开拖入文件
   window.addEventListener('dragenter', (e) => e.preventDefault());
+
+  // —— 举牌持续跟随史莱姆头顶 ——
+  setInterval(() => {
+    if (sign.style.display !== 'block' || !signUrls.length) return;
+    const s = slimeCenter();
+    sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
+    sign.style.top = (s.y - sign.offsetHeight - 12) + 'px';
+  }, 100);
 })();
 </script>
 </body>
