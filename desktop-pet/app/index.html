@@ -3090,6 +3090,10 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         signIdx = signUrls.length - 1;
         signImg.src = signUrls[signIdx];
         sign.style.display = 'block';
+        // 定位到史莱姆头顶
+        const s = slimeCenter();
+        sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
+        sign.style.top = (s.y - 140) + 'px';
         petTip('🖼️ 举在头顶展示啦！点牌子换一张');
       };
       reader.readAsDataURL(f);
