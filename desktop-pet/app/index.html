@@ -2952,6 +2952,65 @@ window.__petPickGround = (sx, sy) => {
 window.__pet = { weather, dnState, camera, controls, world, slime, slimeGroup, mood,
   startHops, startDance, say, spawnBaby, spawnFood, pickGround: window.__petPickGround };
 window.__petToggleMap = () => { world.visible = !world.visible; return world.visible; };
+
+  // —— 📦 参数持久化：记住上次的形状/帽子/天气/昼夜/颜色/心情 ——
+  let petRestoring = false;
+
+  function petSaveState() {
+    if (petRestoring) return;
+    try {
+      localStorage.setItem('slime_pet_state', JSON.stringify({
+        shapeIdx: slimeShapeIdx,
+        emoji: currentEmojiName || '',
+        hatIdx: hatIdx,
+        weatherMode: weather.mode,
+        night: dnState.target,
+        muted: muted,
+        rainbow: slimeRainbow,
+        mood: Math.round(mood.happy),
+        name: (loadSettings ? (loadSettings().name || '') : (window.__petName || ''))
+      }));
+    } catch(e) {}
+  }
+
+  function petRestoreState() {
+    petRestoring = true;
+    try {
+      const s = JSON.parse(localStorage.getItem('slime_pet_state') || '{}');
+      if (s.shapeIdx !== undefined && s.shapeIdx >= 0 && s.shapeIdx < 4) {
+        applyShape(s.shapeIdx);
+      }
+      if (s.emoji) {
+        applyEmojiShape(s.emoji);
+      }
+      if (s.hatIdx !== undefined && s.hatIdx >= 0) {
+        hatIdx = s.hatIdx;
+        hats.forEach((h, i) => { h.visible = (i === hatIdx); });
+      }
+      if (s.weatherMode !== undefined) {
+        weather.mode = s.weatherMode;
+        const wb = document.getElementById('weatherBtn');
+        if (wb) wb.textContent = ['☔','❄️','☀️'][s.weatherMode];
+      }
+      if (s.night) {
+        dnState.target = 1;
+        const nb = document.getElementById('nightBtn');
+        if (nb) nb.textContent = '☀️';
+      }
+      if (s.muted) {
+        muted = true;
+        const mb = document.getElementById('mute');
+        if (mb) mb.textContent = '🔇';
+      }
+      if (s.rainbow) slimeRainbow = true;
+      if (s.mood !== undefined) mood.happy = s.mood;
+    } catch(e) {}
+    petRestoring = false;
+  }
+
+  setInterval(() => { if (!petRestoring) petSaveState(); }, 15000);
+  window.addEventListener('beforeunload', () => { petRestoring = true; petSaveState(); });
+  setTimeout(petRestoreState, 200);
 window.__petToast = toast;
 </script>
 
