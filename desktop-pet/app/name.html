@@ -3,24 +3,23 @@
 <head>
 <meta charset="utf-8">
 <style>
-  html, body { background: transparent; }
-  body { margin: 0; font-family: "PingFang SC", sans-serif; background: rgba(252,252,255,.98);
-    display: flex; gap: 8px; padding: 16px; align-items: center; height: calc(100% - 32px);
-    box-sizing: border-box; border-radius: 14px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 100vw; height: 100vh; background: #fff;
+    font-family: "PingFang SC", sans-serif;
+    display: flex; gap: 8px; padding: 16px; align-items: center; }
   input { flex: 1; font-size: 15px; padding: 7px 9px; border-radius: 8px;
     border: 2px solid #bcd8ee; outline: none; color: #2c4a66; }
   input:focus { border-color: #54c8ff; }
   button { border: none; background: #54c8ff; color: #fff; border-radius: 8px;
-    padding: 8px 14px; cursor: pointer; }
+    padding: 8px 14px; cursor: pointer; font-size: 14px; }
 </style>
 </head>
 <body>
   <input id="n" maxlength="6" placeholder="给它取个名">
   <button id="ok">好了</button>
   <script>
-    const p = new URLSearchParams(location.search);
     const input = document.getElementById('n');
-    input.value = p.get('n') || '';
+    input.value = new URLSearchParams(location.search).get('n') || '';
     input.focus(); input.select();
     function go() {
       const v = input.value.trim();
