@@ -1627,6 +1627,11 @@ function updateBall(dt) {
       ball.vel.x *= -0.4;
       ball.vel.z *= -0.4;
     }
+    // 球靠边太近 → 往中心推（避免史莱姆够不到）
+    if (Math.abs(ball.pos.x) > BOUND - 0.7 || Math.abs(ball.pos.z) > BOUND - 0.7) {
+      ball.vel.x -= ball.pos.x * 0.03;
+      ball.vel.z -= ball.pos.z * 0.03;
+    }
     // 球卡死看门狗：速度极低持续 3 秒 → 随机滚一下（防止卡在障碍物缝隙里）
     if (ball.mode === 'free') {
       const spd = Math.hypot(ball.vel.x, ball.vel.z);
@@ -1643,7 +1648,7 @@ function updateBall(dt) {
   ball.g.rotation.z -= ball.vel.x * dt * 2.4;
   // 史莱姆靠近就把球踢飞
   const d = Math.hypot(ball.pos.x - slime.pos.x, ball.pos.z - slime.pos.z);
-  if (ball.mode === 'free' && d < 1.35 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
+  if (ball.mode === 'free' && d < 1.6 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
     kickCd = 0.5;
     const kx = (ball.pos.x - slime.pos.x) / (d || 1);
     const kz = (ball.pos.z - slime.pos.z) / (d || 1);
@@ -2746,18 +2751,19 @@ function updateGameLogic(dt, t) {
       S.danceT <= 0 && S.chompT <= 0 && !pet.active && S.zoomT <= 0 && mood.happy > 35 && !starGame.active) {
     const hasFood = foods.some(f => !f.eaten && f.resting);
     const bd = Math.hypot(ball.pos.x - S.pos.x, ball.pos.z - S.pos.z);
-    if (!hasFood && bd > 1.35 && bd < 12 && S.hopCooldown <= 0) {
+    if (!hasFood && bd > 1.6 && bd < 14 && S.hopCooldown <= 0) {
       // 卡死看门狗：追了 3 秒还没接近 → 把球朝自己方向推过来
       if (!S.chaseWatch) S.chaseWatch = t;
-      if (t - S.chaseWatch > 3) {
+      if (t - S.chaseWatch > 2) {
         const dx = S.pos.x - ball.pos.x, dz = S.pos.z - ball.pos.z;
         const dd = Math.hypot(dx, dz) || 1;
-        ball.vel.x = (dx / dd) * 3.5; ball.vel.z = (dz / dd) * 3.5; ball.vel.y = 2.5;
+        ball.vel.x = (dx / dd) * 4; ball.vel.z = (dz / dd) * 4; ball.vel.y = 3;
+        spawnDebris(ball.pos, 3, SPARKLE_COLORS, 4);
         S.chaseWatch = t;
       }
-      S.hopCooldown = 0.8;
+      S.hopCooldown = 0.3;
       startHops(ball.pos);
-    } else if (bd <= 1.35) S.chaseWatch = 0;
+    } else if (bd <= 1.6) S.chaseWatch = 0;
   }
 
   // --- 待机小动作：开心小跳 / 难过叹气 / 夜晚打瞌睡 ---
