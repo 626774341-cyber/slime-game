@@ -3003,51 +3003,85 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     }
   }
 
+  // —— 🍽️ 偏食系统：随机最爱和讨厌的文件类别 ——
+  const CATS = { png:'图片', jpg:'图片', jpeg:'图片', gif:'图片', webp:'图片',
+    mp3:'音乐', wav:'音乐', m4a:'音乐', aac:'音乐', flac:'音乐', ogg:'音乐',
+    txt:'文本', md:'文本', rtf:'文本', doc:'文本', docx:'文本',
+    js:'文本', json:'文本', html:'文本', css:'文本', py:'文本', ts:'文本',
+    zip:'压缩包', rar:'压缩包', '7z':'压缩包', tar:'压缩包', gz:'压缩包' };
+  let petTaste = { like: '', hate: '' };
+  const AUDIO_EXT = new Set(['mp3','wav','m4a','aac','flac','ogg']);
+  const TEXT_EXT = new Set(['txt','md','rtf','doc','docx']);
+  const IMG_EXT = new Set(['png','jpg','jpeg','gif','webp','bmp','heic']);
+  const tasteCats = ['图片', '音乐', '文本', '压缩包'];
+  const rliked = Math.floor(Math.random() * tasteCats.length);
+  petTaste.like = tasteCats[rliked];
+  let rhi = Math.floor(Math.random() * tasteCats.length);
+  while (rhi === rliked) rhi = Math.floor(Math.random() * tasteCats.length);
+  petTaste.hate = tasteCats[rhi];
+
+  // —— 📖 学说话（拖文本后触发）——
+  let petPhraseText = '', petPhraseUntil = 0;
+  const phraseBubble = document.createElement('div');
+  phraseBubble.id = 'petPhraseBubble';
+  document.body.appendChild(phraseBubble);
+  let phraseTimer = null;
+  function showPhraseBubble(text) {
+    phraseBubble.textContent = text;
+    phraseBubble.style.display = 'block';
+    const s = slimeCenter();
+    phraseBubble.style.left = (s.x - phraseBubble.offsetWidth / 2) + 'px';
+    phraseBubble.style.top = (s.y - phraseBubble.offsetHeight - 8) + 'px';
+    clearTimeout(phraseTimer);
+    phraseTimer = setTimeout(() => { phraseBubble.style.display = 'none'; }, 4000);
+  }
+
+  // —— 🖼️ 举牌牌（拖图片后触发）——
+  const signUrls = []; let signIdx = 0;
+  const sign = document.createElement('div');
+  sign.id = 'petSignHolder';
+  sign.style.cssText = 'position:fixed;z-index:5;display:none;pointer-events:auto;cursor:pointer;transition:opacity .4s ease;' +
+    'background:rgba(255,255,255,.95);border-radius:10px;padding:5px;box-shadow:0 4px 14px rgba(60,90,140,.35);';
+  const signImg = document.createElement('img');
+  signImg.style.cssText = 'display:block;max-width:72px;max-height:54px;border-radius:6px;';
+  sign.appendChild(signImg);
+  document.body.appendChild(sign);
+  sign.addEventListener('click', () => {
+    sign.style.opacity = '0';
+    setTimeout(() => { sign.style.display = 'none'; }, 400);
+  });
+
   window.addEventListener('dragover', (e) => { e.preventDefault(); });
   window.addEventListener('drop', (e) => {
     e.preventDefault();
     const dt = e.dataTransfer; if (!dt) return;
     const f = dt.files && dt.files[0];
     if (!f) return;
-    dropCount++;
     const ext = (f.name.split('.').pop() || '').toLowerCase();
-    const p = P();
-    // 🎬 大字反馈：确认吃到了
-    const flash = document.createElement('div');
-    const fEmoji = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
-      txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' }[ext] || '🍽️';
-    flash.textContent = fEmoji;
-    flash.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(2.5);' +
-      'font-size:80px;z-index:100;pointer-events:none;opacity:1;transition:all .8s ease-out;';
-    document.body.appendChild(flash);
-    requestAnimationFrame(() => {
-      flash.style.transform = 'translate(-50%,-80%) scale(0.3)';
-      flash.style.opacity = '0';
-    });
-    setTimeout(() => flash.remove(), 900);
-    // 🎬 吃的动画：文件飞进嘴里
-    const fileEmojiMap = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
-      txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' };
-    flyToMouth(e.clientX, e.clientY, fileEmojiMap[ext] || '📄');
-    // 🍽️ 偏食判定：最爱=更多爱心+欢呼，讨厌=摇头嫌弃，普通=正常吃
-    const taste = window.__petTaste || {};
-    const CATS = { png:'图片', jpg:'图片', jpeg:'图片', gif:'图片', webp:'图片', heic:'图片',
-      mp3:'音乐', wav:'音乐', m4a:'音乐', aac:'音乐', flac:'音乐', ogg:'音乐',
-      txt:'文本', md:'文本', js:'文本', json:'文本', html:'文本', css:'文本', py:'文本', ts:'文本',
-      zip:'压缩包', rar:'压缩包', '7z':'压缩包', tar:'压缩包', gz:'压缩包',
-      png2:'图片' };
     const cat = CATS[ext] || '其他';
-    // 0.5 秒后爱心迸发 + 果冻抖动
+    // 文件飞进嘴里
+    const fileEmo = { mp3:'🎵', wav:'🎵', txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️' }[ext] || '📄';
+    flyToMouth(e.clientX, e.clientY, fileEmo);
+    // 0.5 秒后反馈
     setTimeout(() => {
       const s = slimeCenter();
-      burstHearts(s.x, s.y - 20, cat === taste.like ? 14 : 8);
-      if (p && p.slime) p.slime.sq.v += 5;
+      const p = window.__pet;
+      if (!p) return;
+      if (pet.slime) { pet.slime.sq.x = 0.35; pet.slime.moodT = 1; }
+      if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + (cat === petTaste.like ? 20 : 12));
+      if (cat === petTaste.like) {
+        burstHearts(s.x, s.y - 20, 14);
+        petTip('🎉 最爱的「' + cat + '」！爱死你了！');
+      } else if (cat === petTaste.hate) {
+        burstHearts(s.x, s.y - 20, 3);
+        petTip('唔…「' + cat + '」不太喜欢…换一个嘛');
+        if (pet.slime) pet.slime.sq.v -= 6;
+      } else {
+        burstHearts(s.x, s.y - 20, 8);
+      }
     }, 500);
-    // 偏食反馈
-    if (p && p.slime) { p.slime.sq.x = 0.35; p.slime.moodT = 1; }
-    if (p && p.mood) p.mood.happy = Math.min(100, p.mood.happy + (cat === taste.like ? 20 : 12));
-    // === 1. 拖音频 → 学节奏 ===
-    if (['mp3','wav','m4a','aac','flac','ogg'].includes(ext)) {
+    // 按类型处理
+    if (AUDIO_EXT.has(ext)) {
       petTip('🎵 正在学这首歌的节奏…');
       f.arrayBuffer().then(buf => {
         const ac = new (window.AudioContext || window.webkitAudioContext)();
@@ -3060,53 +3094,31 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
           env.push(Math.sqrt(e2 / (hop/4)));
         }
         let peak = 0; for (const e2 of env) peak = Math.max(peak, e2);
-        const beats = []; let lastT = -9;
+        const beats = []; let lastT2 = -9;
         for (let i = 1; i < env.length - 1; i++) {
           const t = i / 20;
-          if (env[i] > peak * 0.3 && env[i] >= env[i-1] && env[i] > env[i+1] && t - lastT > 0.15) { beats.push(t); lastT = t; }
+          if (env[i] > peak * 0.3 && env[i] >= env[i-1] && env[i] > env[i+1] && t - lastT2 > 0.15) { beats.push(t); lastT2 = t; }
         }
         window.__petBeats = beats.slice(0, 40);
-        petTip('🎵 学会了！点 💃 跳舞时它会按节奏唱！');
+        petTip('🎵 学会了！点 💃 跳舞试试！');
       }).catch(() => petTip('这个音频学不会…'));
       return;
     }
-    // === 2. 拖文本 → 学说话 ===
-    if (['docx','doc','pdf','pptx','xlsx'].includes(ext)) {
-      petTip('📖 哇，好厚的一本！让我翻翻…');
-      if (p && p.slime) { p.slime.sq.v += 6; p.slime.moodT = 1; }
-      spawnTreats(innerWidth / 2, innerHeight * 0.45);
-      setTimeout(() => petTip('📖 咦…这个字好小，我慢慢研究…'), 2000);
-      return;
-    }
-    if (['txt','md','rtf','doc','docx'].includes(ext)) {
+    if (TEXT_EXT.has(ext)) {
       f.text().then(t => {
-        let clean = t;
-        if (ext === 'rtf') {
-          // 清洗 RTF 控制码和花括号，只留可读文字
-          clean = clean.replace(/\\'([0-9a-f]{2})/gi, ' ')
-                       .replace(/\\[-a-z]+\\d* ?/gi, ' ')
-                       .replace(/[{}]/g, ' ')
-                       .replace(/\s+/g, ' ');
-        }
-        const sents = clean.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
+        const sents = t.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
         if (sents.length) {
           const line = sents[Math.floor(Math.random()*sents.length)];
-          window.__petPhrase = line;
+          showPhraseBubble(line);
+          if (pet.say) pet.say(line);
+          if (pet.slime) { pet.slime.sq.v += 5; pet.slime.moodT = 1; }
+          if (pet.mood) pet.mood.happy = Math.min(100, pet.mood.happy + 15);
           petTip('📖 学会了一句！');
-          if (p && p.say) p.say(line);
-        } else petTip('这里没有能学的话…');
+        } else petTip('这个文件里没有能学的话…');
       });
       return;
     }
-    // === 3. 拖文件夹 → 生蛋 ===
-    if (f.size === 0 && !f.type) {
-      petTip('🥚 孵化中…');
-      const p = P();
-      if (p && p.spawnBaby) setTimeout(() => { p.spawnBaby(); petTip('🐣 小史莱姆出生了！'); }, 800);
-      return;
-    }
-    // === 4. 拖图片 → 举牌牌 ===
-    if (['png','jpg','jpeg','gif','webp','bmp'].includes(ext)) {
+    if (IMG_EXT.has(ext)) {
       const reader = new FileReader();
       reader.onload = () => {
         signUrls.push(reader.result);
@@ -3115,31 +3127,16 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         signImg.src = signUrls[signIdx];
         sign.style.display = 'block';
         sign.style.opacity = '1';
-        // 定位到史莱姆头顶正上方
         const s = slimeCenter();
         sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
         sign.style.top = Math.max(s.y - 110, 60) + 'px';
-        petTip('🖼️ 举在头顶展示啦！');
         petTip('🖼️ 举在头顶展示啦！跟随着它～');
       };
       reader.readAsDataURL(f);
       return;
     }
-    // === 5. 通用吃 ===
     petTip('😋 ' + f.name + ' 好吃！');
-    lastFile = f;
-    // === 吃撑打嗝 ===
-    if (dropCount % 5 === 0 && lastFile) {
-      setTimeout(() => {
-        petTip('嗝——吃太饱啦！');
-        if (window.petApi) {
-          window.petApi.saveFileAs(lastFile.name, lastFile).then(r => {
-            if (r) petTip('📦 帮你放回了：' + r.split('/').pop());
-          });
-        }
-      }, 600);
-    }
-  });
+  }););
 
   // 阻止浏览器打开拖入文件
   window.addEventListener('dragenter', (e) => e.preventDefault());
