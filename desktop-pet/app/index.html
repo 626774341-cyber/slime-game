@@ -2945,17 +2945,16 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
   // 创建举牌
   const sign = document.createElement('div');
   sign.id = 'petSignHolder';
-  sign.style.cssText = 'position:fixed;z-index:5;display:none;pointer-events:auto;cursor:pointer;' +
+  sign.style.cssText = 'position:fixed;z-index:5;display:none;pointer-events:auto;cursor:pointer;transition:opacity .4s ease;' +
     'background:rgba(255,255,255,.95);border-radius:10px;padding:5px;box-shadow:0 4px 14px rgba(60,90,140,.35);';
   const signImg = document.createElement('img');
-  signImg.style.cssText = 'display:block;max-width:120px;max-height:90px;border-radius:6px;';
+  signImg.style.cssText = 'display:block;max-width:72px;max-height:54px;border-radius:6px;';
   sign.appendChild(signImg);
   document.body.appendChild(sign);
   let signUrls = [], signIdx = 0;
   sign.addEventListener('click', () => {
-    if (signUrls.length < 2) return;
-    signIdx = (signIdx + 1) % signUrls.length;
-    signImg.src = signUrls[signIdx];
+    sign.style.opacity = '0';
+    setTimeout(() => { sign.style.display = 'none'; }, 400);
   });
 
   // 拖喂计数提示
@@ -3090,11 +3089,17 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         signIdx = signUrls.length - 1;
         signImg.src = signUrls[signIdx];
         sign.style.display = 'block';
-        // 定位到史莱姆头顶
+        sign.style.opacity = '1';
+        // 定位到史莱姆头顶正上方
         const s = slimeCenter();
         sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
-        sign.style.top = (s.y - 140) + 'px';
-        petTip('🖼️ 举在头顶展示啦！点牌子换一张');
+        sign.style.top = Math.max(s.y - 110, 60) + 'px';
+        petTip('🖼️ 举在头顶展示啦！');
+        clearTimeout(sign._dismiss);
+        sign._dismiss = setTimeout(() => {
+          sign.style.opacity = '0';
+          setTimeout(() => { sign.style.display = 'none'; }, 400);
+        }, 6000);
       };
       reader.readAsDataURL(f);
       return;
