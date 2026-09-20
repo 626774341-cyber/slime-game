@@ -1540,7 +1540,7 @@ function updateFoods(dt) {
 
 /* ================= 玩具球 ================= */
 let ball = null;
-let kickCd = 0;
+let kickCd = 0, nudgeCd = 0;
 function toggleBall() {
   ensureAudio();
   if (ball) {
@@ -1582,6 +1582,7 @@ function grabBall(b) {
 }
 function updateBall(dt) {
   kickCd -= dt;
+  nudgeCd -= dt;
   if (!ball) return;
   if (ball.mode === 'grab') {
     ball.vel.x += ((ball.target.x - ball.pos.x) * 90 - ball.vel.x * 10) * dt;
@@ -1590,6 +1591,11 @@ function updateBall(dt) {
   } else {
     ball.vel.y -= 20 * dt;
   }
+  // ⬆️ 速度上限：防止球飞到天上
+  if (ball.vel.y > 7) ball.vel.y = 7;
+  if (ball.vel.y < -14) ball.vel.y = -14;
+  const bhspd = Math.hypot(ball.vel.x, ball.vel.z);
+  if (bhspd > 10) { ball.vel.x *= 10 / bhspd; ball.vel.z *= 10 / bhspd; }
   ball.pos.addScaledVector(ball.vel, dt);
   if (ball.mode !== 'grab') {
     if (ball.pos.y < 0.22) {
