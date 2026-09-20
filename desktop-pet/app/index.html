@@ -3004,6 +3004,19 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     dropCount++;
     const ext = (f.name.split('.').pop() || '').toLowerCase();
     const p = P();
+    // 🎬 大字反馈：确认吃到了
+    const flash = document.createElement('div');
+    const fEmoji = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
+      txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' }[ext] || '🍽️';
+    flash.textContent = fEmoji;
+    flash.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(2.5);' +
+      'font-size:80px;z-index:100;pointer-events:none;opacity:1;transition:all .8s ease-out;';
+    document.body.appendChild(flash);
+    requestAnimationFrame(() => {
+      flash.style.transform = 'translate(-50%,-80%) scale(0.3)';
+      flash.style.opacity = '0';
+    });
+    setTimeout(() => flash.remove(), 900);
     // 🎬 吃的动画：文件飞进嘴里
     const fileEmojiMap = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
       txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' };
