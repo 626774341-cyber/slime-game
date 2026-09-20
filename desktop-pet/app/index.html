@@ -2960,6 +2960,41 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
 
   // 拖喂计数提示
   let dropCount = 0;
+
+  // —— 视觉动画：文件飞进嘴里 + 爱心迸发 ——
+  function slimeCenter() {
+    const p = P();
+    if (!p || !p.slimeGroup || !p.camera) return { x: innerWidth/2, y: innerHeight*0.45 };
+    const v = p.slimeGroup.position.clone(); v.y += 0.7; v.project(p.camera);
+    return { x: (v.x*0.5+0.5)*innerWidth, y: (-v.y*0.5+0.5)*innerHeight };
+  }
+  function flyToMouth(fx, fy, emoji) {
+    const el = document.createElement('div');
+    el.textContent = emoji;
+    el.style.cssText = 'position:fixed;left:'+(fx-16)+'px;top:'+(fy-16)+'px;font-size:32px;z-index:60;pointer-events:none;transition:all .5s cubic-bezier(.4,0,.6,1);';
+    document.body.appendChild(el);
+    const s = slimeCenter();
+    requestAnimationFrame(() => {
+      el.style.left = (s.x-16)+'px'; el.style.top = (s.y-16)+'px';
+      el.style.transform = 'scale(0.15) rotate(400deg)'; el.style.opacity = '0';
+    });
+    setTimeout(() => el.remove(), 550);
+  }
+  function burstHearts(x, y, n) {
+    for (let i = 0; i < (n||6); i++) {
+      const h = document.createElement('div');
+      h.textContent = ['💖','✨','💗','⭐','💫'][Math.floor(Math.random()*5)];
+      h.style.cssText = 'position:fixed;left:'+(x-10)+'px;top:'+(y-10)+'px;font-size:'+(14+Math.random()*10)+'px;z-index:60;pointer-events:none;transition:all .9s ease-out;';
+      document.body.appendChild(h);
+      const dx = (Math.random()-0.5)*160, dy = -(50+Math.random()*80);
+      requestAnimationFrame(() => {
+        h.style.left = (x+dx-10)+'px'; h.style.top = (y+dy-10)+'px';
+        h.style.opacity = '0'; h.style.transform = 'scale(0.3) rotate('+(Math.random()*60-30)+'deg)';
+      });
+      setTimeout(() => h.remove(), 950);
+    }
+  }
+
   window.addEventListener('dragover', (e) => { e.preventDefault(); });
   window.addEventListener('drop', (e) => {
     e.preventDefault();
@@ -2969,10 +3004,19 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     dropCount++;
     const ext = (f.name.split('.').pop() || '').toLowerCase();
     const p = P();
-    // 反馈UI
+    // 🎬 吃的动画：文件飞进嘴里
+    const fileEmojiMap = { mp3:'🎵', wav:'🎵', m4a:'🎵', aac:'🎵', flac:'🎵', ogg:'🎵',
+      txt:'📄', md:'📝', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' };
+    flyToMouth(e.clientX, e.clientY, fileEmojiMap[ext] || '📄');
+    // 0.5 秒后爱心迸发 + 果冻抖动
+    setTimeout(() => {
+      const s = slimeCenter();
+      burstHearts(s.x, s.y - 20, 8);
+      if (p && p.slime) p.slime.sq.v += 5;
+    }, 500);
+    // 偏食反馈
     if (p && p.slime) { p.slime.sq.x = 0.35; p.slime.moodT = 1; }
     if (p && p.mood) p.mood.happy = Math.min(100, p.mood.happy + 12);
-    if (typeof spawnTreats === 'function') { /* 由下方处理 */ }
     // === 1. 拖音频 → 学节奏 ===
     if (['mp3','wav','m4a','aac','flac','ogg'].includes(ext)) {
       petTip('🎵 正在学这首歌的节奏…');
