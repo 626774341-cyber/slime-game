@@ -3037,6 +3037,10 @@ window.__petToast = toast;
   }
 
   window.addEventListener('dragover', (e) => { e.preventDefault(); });
+  window.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (window.petApi) window.petApi.setIgnoreMouse(false);
+  });
   window.addEventListener('drop', (e) => {
     e.preventDefault();
     const dt = e.dataTransfer; if (!dt) return;

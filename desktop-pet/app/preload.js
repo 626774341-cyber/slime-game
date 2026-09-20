@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('petApi', {
   setHover: (h) => ipcRenderer.send('pet:hover', h),
   close: () => ipcRenderer.send('pet:close'),
+  setIgnoreMouse: (ignore) => ipcRenderer.send('pet:ignoremouse', ignore),
   openNaming: () => ipcRenderer.send('pet:openname'),
   saveFileAs: async (name, file) => {
     const buf = new Uint8Array(await file.arrayBuffer());

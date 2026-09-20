@@ -111,6 +111,9 @@ function setHover(h) {
 
 ipcMain.on('pet:hover', (e, h) => { hovering = !!h; if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!hovering); });
 ipcMain.on('pet:close', () => { quitting = true; app.quit(); });
+ipcMain.on('pet:ignoremouse', (e, ignore) => {
+  if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(ignore);
+});
 ipcMain.on('pet:openname', () => openNamingWindow());
 ipcMain.handle('pet:savefile', async (e, name, buf) => {
   const r = await dialog.showSaveDialog(win, { defaultPath: name });
