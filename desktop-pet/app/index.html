@@ -2961,6 +2961,7 @@ window.__petPickGround = (sx, sy) => {
 window.__pet = { weather, dnState, camera, controls, world, slime, slimeGroup, mood,
   startHops, startDance, say, spawnBaby, spawnFood, pickGround: window.__petPickGround };
 window.__petToggleMap = () => { world.visible = !world.visible; return world.visible; };
+window.__petToast = toast;
 </script>
 
 <script>
@@ -2970,16 +2971,8 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
   const $ = (id) => document.getElementById(id);
   let eatenCount = 0, lastFile = null, lastFedName = '';
 
-  // 创建提示条
-  const tip = document.createElement('div');
-  tip.style.cssText = 'position:fixed;bottom:84px;left:50%;transform:translateX(-50%);' +
-    'background:rgba(35,58,82,.88);color:#fff;font-size:13px;padding:8px 18px;border-radius:999px;' +
-    'opacity:0;transition:opacity .3s;pointer-events:none;z-index:50;white-space:nowrap;';
-  document.body.appendChild(tip);
-  let tipT = null;
   function petTip(msg) {
-    tip.textContent = msg; tip.style.opacity = '1';
-    clearTimeout(tipT); tipT = setTimeout(() => tip.style.opacity = '0', 2400);
+    if (P() && P().toast) P().toast(msg);
   }
 
   // 创建举牌
