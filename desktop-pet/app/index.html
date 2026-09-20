@@ -3071,6 +3071,13 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
       return;
     }
     // === 2. 拖文本 → 学说话 ===
+    if (['docx','doc','pdf','pptx','xlsx'].includes(ext)) {
+      petTip('📖 哇，好厚的一本！让我翻翻…');
+      if (p && p.slime) { p.slime.sq.v += 6; p.slime.moodT = 1; }
+      spawnTreats(innerWidth / 2, innerHeight * 0.45);
+      setTimeout(() => petTip('📖 咦…这个字好小，我慢慢研究…'), 2000);
+      return;
+    }
     if (['txt','md'].includes(ext)) {
       f.text().then(t => {
         const sents = t.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
