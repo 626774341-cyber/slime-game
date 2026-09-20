@@ -2967,13 +2967,15 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     const v = p.slimeGroup.position.clone(); v.y += 0.7; v.project(p.camera);
     return { x: (v.x*0.5+0.5)*innerWidth, y: (-v.y*0.5+0.5)*innerHeight };
   }
-  // —— 举牌持续跟随史莱姆 ——
-  setInterval(() => {
-    if (sign.style.display !== 'block' || !signUrls.length) return;
-    const s = slimeCenter();
-    sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
-    sign.style.top = (s.y - sign.offsetHeight - 12) + 'px';
-  }, 100);
+  // —— 举牌持续跟随史莱姆（每帧同步，流畅跟随）——
+  (function signFollow() {
+    if (sign.style.display === 'block' && signUrls.length) {
+      const s = slimeCenter();
+      sign.style.left = (s.x - sign.offsetWidth / 2) + 'px';
+      sign.style.top = (s.y - sign.offsetHeight - 28) + 'px';
+    }
+    requestAnimationFrame(signFollow);
+  })();
   function flyToMouth(fx, fy, emoji) {
     const el = document.createElement('div');
     el.textContent = emoji;
