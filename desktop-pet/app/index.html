@@ -1648,8 +1648,8 @@ function updateBall(dt) {
   ball.g.rotation.z -= ball.vel.x * dt * 2.4;
   // 史莱姆靠近就把球踢飞
   const d = Math.hypot(ball.pos.x - slime.pos.x, ball.pos.z - slime.pos.z);
-  if (ball.mode === 'free' && d < 1.6 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 0.9) {
-    kickCd = 0.5;
+  if (ball.mode === 'free' && d < 1.6 && kickCd <= 0 && slime.mode !== 'grab' && slime.pos.y < 1.3) {
+    kickCd = 0.15;
     const kx = (ball.pos.x - slime.pos.x) / (d || 1);
     const kz = (ball.pos.z - slime.pos.z) / (d || 1);
     ball.vel.set(kx * 4.2, 4.6, kz * 4.2);
