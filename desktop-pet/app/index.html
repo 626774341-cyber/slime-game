@@ -3080,7 +3080,15 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     }
     if (['txt','md','rtf','doc','docx'].includes(ext)) {
       f.text().then(t => {
-        const sents = t.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
+        let clean = t;
+        if (ext === 'rtf') {
+          // 清洗 RTF 控制码和花括号，只留可读文字
+          clean = clean.replace(/\\'([0-9a-f]{2})/gi, ' ')
+                       .replace(/\\[-a-z]+\\d* ?/gi, ' ')
+                       .replace(/[{}]/g, ' ')
+                       .replace(/\s+/g, ' ');
+        }
+        const sents = clean.split(/[。！？!\n]/).map(s=>s.trim()).filter(s=>s.length>=2&&s.length<=30);
         if (sents.length) {
           const line = sents[Math.floor(Math.random()*sents.length)];
           window.__petPhrase = line;
