@@ -1195,20 +1195,50 @@ function blip(f0, f1, dur, vol, delay = 0) {
 function splashSound() {
   if (muted || !actx) return;
   try {
-    const dur = 0.3;
+    const t0 = actx.currentTime;
+    // 层1：低频"咕咚"（水体排开）
+    const osc = actx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(280, t0);
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.22);
+    const og = actx.createGain();
+    og.gain.setValueAtTime(0.28, t0);
+    og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.25);
+    osc.connect(og).connect(actx.destination);
+    osc.start(t0); osc.stop(t0 + 0.3);
+    // 层2：水花噪声（高频溅射）
+    const dur = 0.35;
     const buf = actx.createBuffer(1, Math.floor(actx.sampleRate * dur), actx.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
-    const src = actx.createBufferSource();
-    src.buffer = buf;
-    const f = actx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = 900;
-    f.Q.value = 0.8;
-    const g = actx.createGain();
-    g.gain.value = 0.25;
-    src.connect(f).connect(g).connect(actx.destination);
-    src.start();
+    for (let i = 0; i < d.length; i++) {
+      const decay = (1 - i / d.length);
+      d[i] = (Math.random() * 2 - 1) * decay * decay;
+    }
+    const src2 = actx.createBufferSource();
+    src2.buffer = buf;
+    const f2 = actx.createBiquadFilter();
+    f2.type = 'bandpass';
+    f2.frequency.setValueAtTime(1800, t0);
+    f2.frequency.exponentialRampToValueAtTime(500, t0 + dur);
+    f2.Q.value = 0.6;
+    const g2 = actx.createGain();
+    g2.gain.setValueAtTime(0.18, t0);
+    g2.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    src2.connect(f2).connect(g2).connect(actx.destination);
+    src2.start(t0);
+    // 层3：气泡（水花后小气泡上浮声）
+    for (let i = 0; i < 3; i++) {
+      const bt = t0 + 0.12 + i * 0.09 + Math.random() * 0.04;
+      const bo = actx.createOscillator();
+      bo.type = 'sine';
+      bo.frequency.setValueAtTime(700 + Math.random() * 500, bt);
+      bo.frequency.exponentialRampToValueAtTime(250, bt + 0.06);
+      const bg = actx.createGain();
+      bg.gain.setValueAtTime(0.06, bt);
+      bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.07);
+      bo.connect(bg).connect(actx.destination);
+      bo.start(bt); bo.stop(bt + 0.08);
+    }
   } catch (e) { /* ignore */ }
 }
 const muteBtn = document.getElementById('mute');
