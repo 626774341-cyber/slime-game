@@ -530,14 +530,19 @@ function pickWaypoint(p, target) {
 
 // 天上的云（缓慢漂移）
 const clouds = [];
+const cloudMats = [];
 function makeCloud() {
   const g = new THREE.Group();
+  const mat = matCloud.clone();   // 每朵云独立材质，供边缘淡入淡出单独调透明度
+  mat.transparent = true;
+  cloudMats.push(mat);
   [[0, 0, 0, 0.55], [-0.62, -0.08, 0.12, 0.4], [0.6, -0.05, -0.1, 0.45], [0.15, 0.18, -0.15, 0.32]]
     .forEach(([x, y, z, r]) => {
-      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), matCloud);
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), mat);
       p.position.set(x, y, z); p.scale.y = 0.75;
       g.add(p);
     });
+  g.userData.mat = mat;
   return g;
 }
 [[-7, 6.8, -7, 0.25], [6, 7.6, -6, 0.18], [1, 6.2, 8, 0.22]].forEach(([x, y, z, v]) => {
@@ -678,6 +683,7 @@ function updateWeatherFx(dt, t) {
   // 云变暗 + 雨声（静音时不响）
   const cl = 1 - 0.4 * weather.rainAmt - 0.12 * weather.snowAmt;
   matCloud.color.setRGB(cl, cl, Math.min(1, cl + 0.03));
+  for (const m of cloudMats) m.color.setRGB(cl, cl, Math.min(1, cl + 0.03));
   if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
 }
 
@@ -1168,10 +1174,12 @@ const SLIME_COLORS = [
   { n: '彩虹模式🌈', rainbow: true },
 ];
 let slimeRainbow = false;
+let slimeColorIdx = 0;            // 当前颜色档位（关闭后下次打开恢复用）
 function setSlimeColor(i) {
   ensureAudio();
   const col = SLIME_COLORS[i];
   slimeRainbow = !!col.rainbow;
+  slimeColorIdx = i;
   if (!slimeRainbow) {
     slimeMat.color.setHex(col.c);
     slimeMat.attenuationColor.setHex(col.a);
@@ -2864,11 +2872,12 @@ function fitFaceToShape() {
   slimeGroup.scale.copy(gs);
   slimeGroup.updateMatrixWorld(true);
 }
-function applyEmojiShape(e) {
-  ensureAudio();
+function applyEmojiShape(e, silent) {
+  if (!silent) ensureAudio();
   const g = buildEmojiGeo(e);
-  if (!g) { toast('这个变不出来，换一个试试？'); return; }
+  if (!g) { if (!silent) toast('这个变不出来，换一个试试？'); return; }
   slimeShapeIdx = -1;
+  currentEmojiName = e;
   faceHidden = (e === '🦆');   // 鸭子是无脸干净版
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
@@ -2876,15 +2885,17 @@ function applyEmojiShape(e) {
   fitFaceToShape();
   fitStickersToShape();
   updateHatHeight();
+  if (silent) return;          // 启动恢复时不出声、不弹提示
   spawnSparkles(8);
   say('变——！');
   toast(e + ' 变身！点 🧪 可换其他形状');
   blip(240, 980, 0.22, 0.13);
   document.getElementById('shapePanel').classList.remove('open');
 }
-function applyShape(i) {
-  ensureAudio();
+function applyShape(i, silent) {
+  if (!silent) ensureAudio();
   slimeShapeIdx = i;
+  currentEmojiName = '';
   faceHidden = false;
   const g = getShapeGeo(i);
   slimeMesh.geometry = g;
@@ -2893,6 +2904,7 @@ function applyShape(i) {
   fitFaceToShape();
   fitStickersToShape();
   updateHatHeight();
+  if (silent) return;          // 启动恢复时不出声、不弹提示
   spawnSparkles(6);
   say('变——！');
   toast('🧪 变成了' + SHAPE_NAMES[i]);
@@ -3199,6 +3211,9 @@ function tickBody() {
   for (const c of clouds) {
     c.position.x += c.userData.v * dt;
     if (c.position.x > 15) c.position.x = -15;
+    // 飘出窗口边缘时平滑淡出，绕回另一侧后平滑淡入
+    const edge = Math.min(15 - c.position.x, c.position.x + 15);
+    c.userData.mat.opacity = THREE.MathUtils.smoothstep(edge, 0, 3);
   }
 
   // 悬停光标提示
@@ -3251,6 +3266,7 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         shapeIdx: slimeShapeIdx,
         emoji: currentEmojiName || '',
         hatIdx: hatIdx,
+        colorIdx: slimeColorIdx,
         weatherMode: weather.mode,
         night: dnState.target,
         muted: muted,
@@ -3266,14 +3282,26 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
     try {
       const s = JSON.parse(localStorage.getItem('slime_pet_state') || '{}');
       if (s.shapeIdx !== undefined && s.shapeIdx >= 0 && s.shapeIdx < 4) {
-        applyShape(s.shapeIdx);
+        applyShape(s.shapeIdx, true);
       }
       if (s.emoji) {
-        applyEmojiShape(s.emoji);
+        applyEmojiShape(s.emoji, true);
       }
       if (s.hatIdx !== undefined && s.hatIdx >= 0) {
         hatIdx = s.hatIdx;
         hats.forEach((h, i) => { h.visible = (i === hatIdx); });
+        updateHatHeight();
+      }
+      if (s.colorIdx !== undefined && s.colorIdx >= 0 && s.colorIdx < SLIME_COLORS.length) {
+        const col = SLIME_COLORS[s.colorIdx];
+        slimeColorIdx = s.colorIdx;
+        slimeRainbow = !!col.rainbow;
+        if (!slimeRainbow) {
+          slimeMat.color.setHex(col.c);
+          slimeMat.attenuationColor.setHex(col.a);
+        }
+      } else if (s.rainbow) {
+        slimeRainbow = true;      // 兼容只存了 rainbow 的旧存档
       }
       if (s.weatherMode !== undefined) {
         weather.mode = s.weatherMode;
@@ -3297,7 +3325,8 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
   }
 
   setInterval(() => { if (!petRestoring) petSaveState(); }, 15000);
-  window.addEventListener('beforeunload', () => { petRestoring = true; petSaveState(); });
+  // 关闭前保存。注意不能把 petRestoring 置 true：否则 petSaveState 会被守卫拦下，等于没存
+  window.addEventListener('beforeunload', () => { petSaveState(); });
   setTimeout(petRestoreState, 200);
 window.__petToast = toast;
 </script>

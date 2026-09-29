@@ -674,15 +674,17 @@ const clouds = [];
   const cloudMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.92 });
   for(let i=0;i<7;i++){
     const g = new THREE.Group();
+    const mat = cloudMat.clone();   // 每朵云独立材质，供边缘淡入淡出单独调透明度
     const n = rint(3,5);
     for(let j=0;j<n;j++){
-      const s = new THREE.Mesh(new THREE.SphereGeometry(rand(1.6,3.2),10,8), cloudMat);
+      const s = new THREE.Mesh(new THREE.SphereGeometry(rand(1.6,3.2),10,8), mat);
       s.position.set(j*rand(1.6,2.4)-n, rand(-0.4,0.6), rand(-1,1));
       s.scale.y = 0.6;
       g.add(s);
     }
     g.position.set(rand(-70,70), rand(17,26), rand(-70,70));
     g.userData.speed = rand(0.4,1.0);
+    g.userData.mat = mat;
     scene.add(g); clouds.push(g);
   }
 }
@@ -3226,6 +3228,9 @@ function updateEnvironment(dt){
   for(const c of clouds){
     c.position.x += c.userData.speed*dt;
     if(c.position.x>85) c.position.x = -85;
+    // 飘出窗口边缘时平滑淡出，绕回另一侧后平滑淡入
+    const edge = Math.min(85 - c.position.x, c.position.x + 85);
+    c.userData.mat.opacity = 0.92 * smooth(0, 15, edge);
   }
 
   // 雨/雪

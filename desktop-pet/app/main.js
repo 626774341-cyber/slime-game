@@ -719,6 +719,14 @@ function createWindow() {
     }, 400);
   };
   win.on('resize', saveLater);
+  win.on('move', saveLater);          // 拖动窗口后位置也要记住
+  win.on('close', () => {             // 退出前最后存一次，防抖来不及落盘
+    try {
+      if (win && !win.isDestroyed()) {
+        const st = loadSettings(); st.bounds = win.getBounds(); saveSettings(st);
+      }
+    } catch { }
+  });
   win.on('closed', () => { win = null; });
 }
 

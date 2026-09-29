@@ -62,6 +62,14 @@
                transition: background .15s; }
   .shapeTile:hover { background: rgba(126,200,250,.5); }
   .shapeTile:active { transform: scale(.92); }
+  /* 贴纸面板 */
+  #stickerPanel { position: fixed; right: 72px; bottom: 236px; padding: 10px; display: none;
+                  flex-direction: column; gap: 8px; z-index: 7; }
+  #stickerPanel.open { display: flex; }
+  #stickerPanel .sp-opt { border: none; background: rgba(126,200,250,.16); color: #2c4a66;
+                  font-size: 12px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+                  text-align: left; transition: background .15s; }
+  #stickerPanel .sp-opt:hover { background: rgba(126,200,250,.5); }
   .shapeTile .ic { font-size: 26px; display: block; }
   .shapeTile .lb { font-size: 10px; color: #2c4a66; margin-top: 3px; display: block; }
   /* 心情条 */
@@ -127,6 +135,7 @@
   <span>🎯 点地跳过去</span>
   <span>⌨️ 空格大跳 · B 跳舞</span>
   <span>🔄 拖空白转视角 · 🔍 缩放</span>
+  <span>🩹 长按贴纸按钮：点哪贴哪</span>
 </div>
 
 <div id="moodCard" class="card" title="史莱姆的心情">
@@ -166,6 +175,12 @@
   <button class="shapeTile" data-emoji="🌵"><span class="ic">🌵</span></button>
 </div>
 
+<div id="stickerPanel" class="card">
+  <button class="sp-opt" id="manualModeBtn">🎯 手动模式：点哪贴哪（关）</button>
+  <button class="sp-opt" id="customStickerBtn">🖼️ 上传图片做贴纸</button>
+</div>
+<input type="file" id="customStickerFile" accept="image/*" hidden>
+
 <div id="toolbar">
   <button class="card tool" id="starBtn" title="⭐ 摘星挑战：收集 5 颗星星">⭐</button>
   <button class="card tool" id="shapeBtn" title="变身：经典形状 / Emoji 果冻">🧪</button>
@@ -173,7 +188,7 @@
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
   <button class="card tool" id="hatBtn" title="换帽子">🎩</button>
-  <button class="card tool" id="stickerBtn" title="贴贴纸：每点一次贴一张（不重叠）；点身上的贴纸可撕下">🩹</button>
+  <button class="card tool" id="stickerBtn" title="贴贴纸：点一下贴一张（不重叠）；点身上的贴纸可撕下；长按打开面板">🩹</button>
   <button class="card tool" id="babyBtn" title="史莱姆宝宝（最多3只）">🥚</button>
   <button class="card tool" id="ballBtn" title="玩具球：史莱姆会自己追着踢">🏀</button>
   <button class="card tool" id="feedBtn" title="投喂苹果">🍎</button>
@@ -530,14 +545,19 @@ function pickWaypoint(p, target) {
 
 // 天上的云（缓慢漂移）
 const clouds = [];
+const cloudMats = [];
 function makeCloud() {
   const g = new THREE.Group();
+  const mat = matCloud.clone();   // 每朵云独立材质，供边缘淡入淡出单独调透明度
+  mat.transparent = true;
+  cloudMats.push(mat);
   [[0, 0, 0, 0.55], [-0.62, -0.08, 0.12, 0.4], [0.6, -0.05, -0.1, 0.45], [0.15, 0.18, -0.15, 0.32]]
     .forEach(([x, y, z, r]) => {
-      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), matCloud);
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), mat);
       p.position.set(x, y, z); p.scale.y = 0.75;
       g.add(p);
     });
+  g.userData.mat = mat;
   return g;
 }
 [[-7, 6.8, -7, 0.25], [6, 7.6, -6, 0.18], [1, 6.2, 8, 0.22]].forEach(([x, y, z, v]) => {
@@ -678,6 +698,7 @@ function updateWeatherFx(dt, t) {
   // 云变暗 + 雨声（静音时不响）
   const cl = 1 - 0.4 * weather.rainAmt - 0.12 * weather.snowAmt;
   matCloud.color.setRGB(cl, cl, Math.min(1, cl + 0.03));
+  for (const m of cloudMats) m.color.setRGB(cl, cl, Math.min(1, cl + 0.03));
   if (actx && rainGain) rainGain.gain.value = muted ? 0 : weather.rainAmt * 0.05;
 }
 
@@ -855,19 +876,71 @@ const STICKER_MAX = 30;          // 最多同时贴这么多张，超过自动�
 const ST_RINGS = 7, ST_SECT = 22; // 网格密度
 const stickerRay = new THREE.Raycaster();
 const stickerTexes = [];
+function setupStickerTexture(t) {
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  // 不生成 mipmap：mip 平均会把 alpha 摊薄，配合 alphaTest 会把整张贴纸裁没
+  t.generateMipmaps = false;
+  t.minFilter = THREE.LinearFilter;
+}
 (window.STICKER_SRC || []).forEach((src, i) => {
-  new THREE.TextureLoader().load(src, (t) => {
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    // 不生成 mipmap：mip 平均会把 alpha 摊薄，配合 alphaTest 会把整张贴纸裁没
-    t.generateMipmaps = false;
-    t.minFilter = THREE.LinearFilter;
-    stickerTexes[i] = t;
-  });
+  new THREE.TextureLoader().load(src, (t) => { setupStickerTexture(t); stickerTexes[i] = t; });
 });
 const stickers = [];
 let stickersDirty = false;       // 需要立刻刷新一次贴纸顶点
 let stickersDeformed = false;    // 贴纸顶点当前是否处于形变状态
+const peeling = [];              // 正在播“撕下动画”的贴纸
+let stickerManual = false;       // 手动模式：点哪贴哪
+
+/* —— 本地存档（localStorage）：刷新后贴纸还在 —— */
+const STICKER_SAVE_KEY = 'slime-stickers-v1';
+const STICKER_CUSTOM_KEY = 'slime-sticker-customs-v1';
+function saveStickerLayout() {
+  try {
+    const list = stickers.map(st => ({
+      t: stickerTexes.indexOf(st.mesh.material.map),
+      d: [+st.dir.x.toFixed(4), +st.dir.y.toFixed(4), +st.dir.z.toFixed(4)],
+      a: +st.angRad.toFixed(3),
+    }));
+    localStorage.setItem(STICKER_SAVE_KEY, JSON.stringify({ list }));
+  } catch (e) { /* 存储满了就算了 */ }
+}
+function loadCustomURLs() {
+  try { return JSON.parse(localStorage.getItem(STICKER_CUSTOM_KEY)) || []; }
+  catch (e) { return []; }
+}
+function addCustomTexture(dataUrl, persist) {
+  new THREE.TextureLoader().load(dataUrl, (t) => { setupStickerTexture(t); stickerTexes.push(t); });
+  if (persist) {
+    const urls = loadCustomURLs();
+    if (urls.length >= 12) urls.shift();        // 自定义贴纸最多存 12 张
+    urls.push(dataUrl);
+    try { localStorage.setItem(STICKER_CUSTOM_KEY, JSON.stringify(urls)); } catch (e) {}
+  }
+}
+function loadCustomStickers() { loadCustomURLs().forEach(u => addCustomTexture(u, false)); }
+function restoreStickerLayout() {
+  let list = [];
+  try { list = (JSON.parse(localStorage.getItem(STICKER_SAVE_KEY)) || {}).list || []; } catch (e) {}
+  if (!list.length) return;
+  let restored = 0;
+  withBaseGeometry(() => {
+    for (const item of list) {
+      const tex = stickerTexes[item.t];
+      if (!tex || !item.d) continue;
+      const st = {
+        dir: new THREE.Vector3(item.d[0], item.d[1], item.d[2]).normalize(),
+        angRad: item.a || 0.45, popT: 1,
+      };
+      if (!buildStickerSurface(st)) continue;   // 位置在新形状上失效就放弃这张
+      st.mesh = stickerMeshFrom(st, stickerMaterial(tex));
+      slimeMesh.add(st.mesh);
+      stickers.push(st);
+      restored++;
+    }
+  });
+  if (restored) { stickersDirty = true; toast('🩹 找回了 ' + restored + ' 张上次贴的贴纸'); }
+}
 
 function stickerMaterial(tex) {
   return new THREE.MeshPhysicalMaterial({
@@ -908,6 +981,15 @@ function stickerFaceSpots() {
   cheeks.forEach(c => spots.push(c.position));
   return spots.map(p => p.clone().setY(p.y - 0.68).normalize());
 }
+// 某方向到“已占区域”（五官 / 帽子 / 底部 / 已有贴纸）的空隙（弧度），≥ angRad 即不重叠
+function stickerClearance(dir, faceSpots) {
+  faceSpots = faceSpots || stickerFaceSpots();
+  let c = Math.acos(clamp(dir.y, -1, 1)) - 0.42;
+  c = Math.min(c, Math.acos(clamp(-dir.y, -1, 1)) - 0.5);
+  for (const f of faceSpots) c = Math.min(c, dir.angleTo(f) - 0.34);
+  for (const st2 of stickers) c = Math.min(c, dir.angleTo(st2.dir) - st2.angRad);
+  return c;
+}
 // 找贴纸落点：多轮“最优候选”采样，正面优先；返回 { dir, overlap }
 // 只有整个球面都贴满了（任何角度都放不下）才返回 overlap=true，挑最空的地方叠上去
 function sampleStickerSpot(angRad) {
@@ -916,14 +998,7 @@ function sampleStickerSpot(angRad) {
   const faceSpots = stickerFaceSpots();
   const clearTop = Math.cos(angRad + 0.42);   // 顶部给帽子留位置
   const clearBot = -Math.cos(angRad + 0.5);   // 底部压平区不贴（径向投影在平底上会不稳定）
-  // 该方向到“已占区域”（五官 / 帽子 / 底部 / 已有贴纸）的空隙（弧度），≥ angRad 即不重叠
-  const clearance = (dir) => {
-    let c = Math.acos(clamp(dir.y, -1, 1)) - 0.42;
-    c = Math.min(c, Math.acos(clamp(-dir.y, -1, 1)) - 0.5);
-    for (const f of faceSpots) c = Math.min(c, dir.angleTo(f) - 0.34);
-    for (const st2 of stickers) c = Math.min(c, dir.angleTo(st2.dir) - st2.angRad);
-    return c;
-  };
+  const clearance = (dir) => stickerClearance(dir, faceSpots);
   const regions = [0.45, 0.15, -0.25];        // 相机正面 → 侧面 → 背面也行
   let best = null, bestC = -Infinity;
   for (const fb of regions) {
@@ -1031,6 +1106,7 @@ function removeSticker(st) {
   if (i >= 0) stickers.splice(i, 1);
   slimeMesh.remove(st.mesh);
   st.mesh.geometry.dispose();
+  saveStickerLayout();
 }
 // 重新把所有贴纸投影到当前形状上（变身时调用）
 function fitStickersToShape() {
@@ -1062,13 +1138,48 @@ function addSticker() {
   let ok = false;
   withBaseGeometry(() => { ok = buildStickerSurface(st); });
   if (!ok) { toast('这个位置贴不上去，再点一次！'); return; }
+  attachSticker(st, tex);
+  blip(560, 940, 0.1, 0.1);
+  toast('🩹 贴纸 +1（第 ' + stickers.length + ' 张）');
+}
+// 生成网格并挂到史莱姆身上（addSticker / 手动模式共用）
+function attachSticker(st, tex) {
   st.mesh = stickerMeshFrom(st, stickerMaterial(tex));
   st.mesh.scale.setScalar(0.001);
   slimeMesh.add(st.mesh);
   stickers.push(st);
   stickersDirty = true;
+  saveStickerLayout();
+}
+// 手动模式：点史莱姆身上哪里，就贴哪里
+function placeStickerAtPointer() {
+  raycaster.setFromCamera(ndc, camera);
+  if (!hits.length) { pokeSlime(); return; }
+  const dir = slimeMesh.worldToLocal(hits[0].point.clone()).normalize();
+  // 手动模式只保护眼睛和嘴巴（小范围），脸颊/额头随便贴
+  const eyeL = new THREE.Vector3(-0.3, 0.6, 0.6).normalize();
+  const eyeR = new THREE.Vector3(0.3, 0.6, 0.6).normalize();
+  const mouth = new THREE.Vector3(0, 0.4, 0.9).normalize();
+  for (const f of [eyeL, eyeR, mouth]) {
+    if (dir.angleTo(f) < 0.16) { toast('别挡住我的眼睛嘴巴呀～'); return; }
+  }
+  const angRad = 0.42 + Math.random() * 0.14;
+  for (const st2 of stickers) {                    // 与已有贴纸保持不重叠
+    if (dir.angleTo(st2.dir) < (angRad + st2.angRad) * 0.9) {
+      toast('这里已经有贴纸啦，换个别处～');
+      return;
+    }
+  }
+  if (stickers.length >= STICKER_MAX) removeSticker(stickers[0]);
+  const st = { dir, angRad, popT: 0 };
+  let ok = false;
+  withBaseGeometry(() => { ok = buildStickerSurface(st); });
+  if (!ok) { toast('这个位置贴不上去！'); return; }
+  const tex = stickerTexes[Math.floor(Math.random() * stickerTexes.length)];
+  if (!tex) return;
+  attachSticker(st, tex);
   blip(560, 940, 0.1, 0.1);
-  toast('🩹 贴纸 +1（第 ' + stickers.length + ' 张）');
+  spawnSparkles(4);
 }
 // 点到身上的贴纸 → 撕下来
 function stickerAtPointer() {
@@ -1080,10 +1191,70 @@ function stickerAtPointer() {
 }
 function peelSticker(st) {
   st.mesh.getWorldPosition(_v);
-  removeSticker(st);
   spawnDebris(_v, 8, [0xffffff, 0xf2f2f2, 0xe8e8e8], 3, 1.2, 1.6);   // 纸屑
   blip(640, 200, 0.16, 0.09);                                        // 撕下来的“呲啦”下滑音
+  const i = stickers.indexOf(st);
+  if (i >= 0) stickers.splice(i, 1);        // 立刻移出列表：不再占位、不再计入存档
+  saveStickerLayout();
+  // 撕下动画准备：把网格原点挪到贴纸中心，才能原地翻转飞出
+  const pa = st.mesh.geometry.attributes.position.array;
+  const center = new THREE.Vector3();
+  for (let v = 0; v < pa.length; v += 3) center.add(_v.set(pa[v], pa[v + 1], pa[v + 2]));
+  center.divideScalar(pa.length / 3);
+  for (let v = 0; v < pa.length; v += 3) { pa[v] -= center.x; pa[v + 1] -= center.y; pa[v + 2] -= center.z; }
+  st.mesh.geometry.attributes.position.needsUpdate = true;
+  st.mesh.position.copy(center);
+  peeling.push({
+    st, t: 0,
+    center: center.clone(),
+    normal: st.dir.clone(),
+    spin: (st.up || new THREE.Vector3(0, 1, 0)).clone(),
+  });
   toast('撕下了一张贴纸（剩 ' + stickers.length + ' 张）');
+}
+// 把上传的图片加工成带白色描边的贴纸贴图（透明图走轮廓描边，不透明图走圆角白框）
+function makeStickerFromImage(img) {
+  const C = 384, fit = 316, off = (C - fit) / 2;
+  const probe = document.createElement('canvas');
+  probe.width = img.width; probe.height = img.height;
+  const pg = probe.getContext('2d');
+  pg.drawImage(img, 0, 0);
+  const px = pg.getImageData(0, 0, probe.width, probe.height).data;
+  const alphaAt = (x, y) => px[(Math.min(y, probe.height - 1) * probe.width + Math.min(x, probe.width - 1)) * 4 + 3];
+  const hasAlpha = [alphaAt(1, 1), alphaAt(probe.width - 2, 1), alphaAt(1, probe.height - 2), alphaAt(probe.width - 2, probe.height - 2)]
+    .some(a => a < 200);
+  const c = document.createElement('canvas'); c.width = C; c.height = C;
+  const g = c.getContext('2d');
+  const rr = (ctx, x, y, w2, h2, r) => {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w2, h2, r); else ctx.rect(x, y, w2, h2);
+  };
+  if (hasAlpha) {
+    // 轮廓描边：白色层由多份偏移印样合成，再垫在原图下面
+    const b = document.createElement('canvas'); b.width = C; b.height = C;
+    const bg = b.getContext('2d');
+    for (let a = 0; a < 12; a++) {
+      const ox = Math.cos(a / 12 * Math.PI * 2) * 7, oy = Math.sin(a / 12 * Math.PI * 2) * 7;
+      bg.drawImage(img, off + ox, off + oy, fit, fit);
+    }
+    bg.drawImage(img, off, off, fit, fit);
+    bg.globalCompositeOperation = 'source-in';
+    bg.fillStyle = '#ffffff';
+    bg.fillRect(0, 0, C, C);
+    g.drawImage(b, 0, 0);
+    g.drawImage(img, off, off, fit, fit);
+  } else {
+    const pad = 16, r = 30;
+    g.fillStyle = '#ffffff';
+    rr(g, 0, 0, C, C, r); g.fill();
+    g.save();
+    rr(g, pad, pad, C - pad * 2, C - pad * 2, r * 0.6); g.clip();
+    const scale = Math.max((C - pad * 2) / img.width, (C - pad * 2) / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    g.drawImage(img, (C - dw) / 2, (C - dh) / 2, dw, dh);
+    g.restore();
+  }
+  return c.toDataURL('image/png');
 }
 // 每帧：用与 updateSlime 相同的公式驱动贴纸顶点，果冻怎么抖贴纸就怎么动
 function updateStickers(dt, t) {
@@ -1122,6 +1293,22 @@ function updateStickers(dt, t) {
       st.mesh.scale.setScalar(Math.max(0.001, 1 + 2.70158 * p * p * p + 1.70158 * p * p));
     }
   }
+  for (let i = peeling.length - 1; i >= 0; i--) {         // 撕下动画：脱离表面 → 翻转飞出 → 淡出
+    const it = peeling[i];
+    it.t = Math.min(1, it.t + dt / 0.6);
+    const k = it.t;
+    const fly = k * k * (3 - 2 * k);                      // smoothstep 缓动
+    it.st.mesh.position.copy(it.center).addScaledVector(it.normal, 0.05 + 0.55 * fly);
+    it.st.mesh.quaternion.setFromAxisAngle(it.spin, fly * 3.4);
+    it.st.mesh.scale.setScalar(Math.max(0.001, 1 - 0.45 * k));
+    it.st.mesh.material.transparent = true;
+    it.st.mesh.material.opacity = 1 - fly * 0.9;
+    if (k >= 1) {
+      slimeMesh.remove(it.st.mesh);
+      it.st.mesh.geometry.dispose();
+      peeling.splice(i, 1);
+    }
+  }
 }
 
 /* ================= 换色系统 ================= */
@@ -1135,10 +1322,12 @@ const SLIME_COLORS = [
   { n: '彩虹模式🌈', rainbow: true },
 ];
 let slimeRainbow = false;
+let slimeColorIdx = 0;            // 当前颜色档位（关闭后下次打开恢复用）
 function setSlimeColor(i) {
   ensureAudio();
   const col = SLIME_COLORS[i];
   slimeRainbow = !!col.rainbow;
+  slimeColorIdx = i;
   if (!slimeRainbow) {
     slimeMat.color.setHex(col.c);
     slimeMat.attenuationColor.setHex(col.a);
@@ -2176,6 +2365,7 @@ window.addEventListener('pointerdown', (e) => {
   updateNdc(e);
   const stickerHit = stickerAtPointer();               // 点到贴纸：松手时撕下（拖动仍可转视角）
   const hit = stickerHit ? { kind: 'sticker', obj: stickerHit } : pickTarget();
+  if (stickerManual && hit.kind === 'slime') { hit.kind = 'stickerPlace'; try { window.__sp = (window.__sp || 0) + 1; } catch (err) {} }   // 手动模式：点按 = 定点贴纸
   drag.active = true; drag.moved = false;
   drag.kind = hit.kind; drag.obj = hit.obj;
   drag.x = e.clientX; drag.y = e.clientY; drag.t0 = performance.now(); drag.id = e.pointerId;
@@ -2221,7 +2411,9 @@ window.addEventListener('pointerup', (e) => {
   if (!drag.active || e.pointerId !== drag.id) return;
   const quick = performance.now() - drag.t0 < 300;
   const k = drag.kind;
-  if (k === 'slime') {
+  if (k === 'stickerPlace') {
+    if (quick || !drag.moved) placeStickerAtPointer();  // 松手处落贴；拖动视角的松手不贴
+  } else if (k === 'slime') {
     pet.active = false;
     if (slime.mode === 'grab') {
       if (!drag.moved && quick) pokeSlime();
@@ -2244,7 +2436,7 @@ window.addEventListener('pointerup', (e) => {
   } else if (k === 'sticker' && drag.obj) {
     if (!drag.moved && quick) peelSticker(drag.obj);   // 点一下贴纸 = 撕下来
   } else if (k === 'none') {
-    if (!drag.moved && quick) {
+    if (!drag.moved && quick && !stickerManual) {        // 手动模式：点空地别让史莱姆跳走
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(groundPlane, _v)) {
         if (inPond(_v.x, _v.z)) fishJump();
@@ -2637,6 +2829,7 @@ function updateStarGame(dt, t) {
 // —— 变形药水：圆滚滚 / 小方块 / 甜甜圈 / 布丁 ——
 const SHAPE_NAMES = ['圆滚滚', '小方块', '甜甜圈', '布丁'];
 let slimeShapeIdx = 0;
+let currentEmojiName = '';        // 当前 Emoji 果冻名（'' 表示经典形状）
 const shapeCache = {};
 function getShapeGeo(i) {
   if (shapeCache[i]) return shapeCache[i];
@@ -2804,26 +2997,29 @@ function fitFaceToShape() {
   slimeGroup.scale.copy(gs);
   slimeGroup.updateMatrixWorld(true);
 }
-function applyEmojiShape(e) {
-  ensureAudio();
+function applyEmojiShape(e, silent) {
+  if (!silent) ensureAudio();
   const g = buildEmojiGeo(e);
-  if (!g) { toast('这个变不出来，换一个试试？'); return; }
+  if (!g) { if (!silent) toast('这个变不出来，换一个试试？'); return; }
   slimeShapeIdx = -1;
+  currentEmojiName = e;
   faceHidden = (e === '🦆');   // 鸭子是无脸干净版
   slimeMesh.geometry = g;
   basePos = Float32Array.from(g.attributes.position.array);
   baseNor = Float32Array.from(g.attributes.normal.array);
   fitFaceToShape();
   fitStickersToShape();
+  if (silent) return;          // 启动恢复时不出声、不弹提示
   spawnSparkles(8);
   say('变——！');
   toast(e + ' 变身！点 🧪 可换其他形状');
   blip(240, 980, 0.22, 0.13);
   document.getElementById('shapePanel').classList.remove('open');
 }
-function applyShape(i) {
-  ensureAudio();
+function applyShape(i, silent) {
+  if (!silent) ensureAudio();
   slimeShapeIdx = i;
+  currentEmojiName = '';
   faceHidden = false;
   const g = getShapeGeo(i);
   slimeMesh.geometry = g;
@@ -2831,6 +3027,7 @@ function applyShape(i) {
   baseNor = Float32Array.from(g.attributes.normal.array);
   fitFaceToShape();
   fitStickersToShape();
+  if (silent) return;          // 启动恢复时不出声、不弹提示
   spawnSparkles(6);
   say('变——！');
   toast('🧪 变成了' + SHAPE_NAMES[i]);
@@ -3041,10 +3238,56 @@ document.querySelectorAll('#shapePanel .shapeTile').forEach(btn => {
 });
 document.getElementById('babyBtn').addEventListener('click', toggleBaby);
 document.getElementById('hatBtn').addEventListener('click', cycleHat);
-document.getElementById('stickerBtn').addEventListener('click', () => {
-  ensureAudio();
-  addSticker();
-});
+{
+  const stickerBtn = document.getElementById('stickerBtn');
+  const stickerPanel = document.getElementById('stickerPanel');
+  let lpTimer = null, lpFired = false;
+  const togglePanel = () => {
+    stickerPanel.classList.toggle('open');
+    blip(520, 760, 0.08, 0.08);
+  };
+  stickerBtn.addEventListener('pointerdown', () => {      // 长按 0.55s 打开贴纸面板
+    lpFired = false;
+    lpTimer = setTimeout(() => { lpFired = true; togglePanel(); }, 550);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+    stickerBtn.addEventListener(ev, () => clearTimeout(lpTimer)));
+  stickerBtn.addEventListener('click', () => {
+    ensureAudio();
+    if (lpFired) { lpFired = false; return; }             // 长按松开不算“贴一张”
+    addSticker();
+  });
+  document.getElementById('manualModeBtn').addEventListener('click', () => {
+    ensureAudio();
+    stickerManual = !stickerManual;
+    document.getElementById('manualModeBtn').textContent =
+      '🎯 手动模式：点哪贴哪（' + (stickerManual ? '开' : '关') + '）';
+    stickerBtn.classList.toggle('active', stickerManual);
+    stickerPanel.classList.remove('open');
+    toast(stickerManual ? '🎯 手动模式已开启：点史莱姆身上哪里，就贴哪里（再长按按钮退出）'
+                        : '已退出手动贴纸模式，点 🩹 恢复随机贴');
+    blip(600, stickerManual ? 980 : 420, 0.1, 0.09);
+  });
+  const fileInput = document.getElementById('customStickerFile');
+  document.getElementById('customStickerBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const url = makeStickerFromImage(img);
+        addCustomTexture(url, true);
+        toast('🖼️ 新贴纸做好了！点 🩹 就能贴到身上');
+        blip(500, 1000, 0.12, 0.1);
+      };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
 document.getElementById('danceBtn').addEventListener('click', startDance);
 document.getElementById('paletteBtn').addEventListener('click', () => {
   ensureAudio();
@@ -3137,6 +3380,9 @@ function tickBody() {
   for (const c of clouds) {
     c.position.x += c.userData.v * dt;
     if (c.position.x > 15) c.position.x = -15;
+    // 飘出窗口边缘时平滑淡出，绕回另一侧后平滑淡入
+    const edge = Math.min(15 - c.position.x, c.position.x + 15);
+    c.userData.mat.opacity = THREE.MathUtils.smoothstep(edge, 0, 3);
   }
 
   // 悬停光标提示
@@ -3160,10 +3406,72 @@ setInterval(() => { if (document.hidden) tickBody(); }, 66);
 // 首帧渲染完成后再淡入，并隐藏加载页
 canvas.classList.add('ready');
 document.getElementById('loading').classList.add('hide');
+loadCustomStickers();                     // 取回上次上传的自定义贴纸
+setTimeout(restoreStickerLayout, 1400);   // 等 1.4s（贴图基本就绪）再恢复上次的贴纸布局
 
 // 开场引导
 slime.wob1.v = 6;
 spawnRipple(0, 0, 0.5);
+
+/* ================= 📦 参数持久化 ================= */
+// 关闭前记住这次的形态 / 颜色 / 帽子 / 天气 / 昼夜 / 静音 / 心情，下次打开自动恢复
+const WEB_STATE_KEY = 'slime_web_state';
+function saveSlimeState() {
+  try {
+    localStorage.setItem(WEB_STATE_KEY, JSON.stringify({
+      shapeIdx: slimeShapeIdx,
+      emoji: currentEmojiName || '',
+      hatIdx: hatIdx,
+      colorIdx: slimeColorIdx,
+      rainbow: slimeRainbow,
+      weatherMode: weather.mode,
+      night: dnState.target,
+      muted: muted,
+      mood: Math.round(mood.happy),
+    }));
+  } catch (e) { /* 隐私模式等场景忽略 */ }
+}
+function restoreSlimeState() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(WEB_STATE_KEY) || '{}'); } catch (e) { s = {}; }
+  if (s.shapeIdx !== undefined && s.shapeIdx >= 0 && s.shapeIdx < 4) applyShape(s.shapeIdx, true);
+  if (s.emoji) applyEmojiShape(s.emoji, true);
+  if (s.hatIdx !== undefined && s.hatIdx >= 0) {
+    hatIdx = s.hatIdx;
+    hats.forEach((h, i) => { h.visible = (i === hatIdx); });
+  }
+  if (s.colorIdx !== undefined && s.colorIdx >= 0 && s.colorIdx < SLIME_COLORS.length) {
+    const col = SLIME_COLORS[s.colorIdx];
+    slimeColorIdx = s.colorIdx;
+    slimeRainbow = !!col.rainbow;
+    if (!slimeRainbow) {
+      slimeMat.color.setHex(col.c);
+      slimeMat.attenuationColor.setHex(col.a);
+    }
+  } else if (s.rainbow) {
+    slimeRainbow = true;          // 兼容只存了 rainbow 的旧存档
+  }
+  if (s.weatherMode !== undefined) {
+    weather.mode = s.weatherMode;
+    weatherBtn.textContent = ['☔', '❄️', '☀️'][s.weatherMode];
+  }
+  if (s.night) {
+    dnState.target = 1;
+    nightBtn.textContent = '☀️';
+  }
+  if (s.muted) {
+    muted = true;
+    muteBtn.textContent = '🔇';
+  }
+  if (s.mood !== undefined) mood.happy = s.mood;
+}
+restoreSlimeState();
+setInterval(saveSlimeState, 15000);                       // 玩的过程中定期存
+window.addEventListener('beforeunload', saveSlimeState);  // 关闭前存一次
+window.addEventListener('pagehide', saveSlimeState);      // 手机 / 后台被回收也能存到
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveSlimeState(); });
+
+window.__stickerDebug = { stickers, camera, v3: (x, y, z) => new THREE.Vector3(x, y, z) }; // 演示用
 setTimeout(() => toast('点我、拖我、长按摸摸我 →'), 1200);
 
 window.addEventListener('resize', () => {
