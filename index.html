@@ -712,10 +712,10 @@ const slimeGeo = new THREE.SphereGeometry(0.9, 40, 28);
     if (y < -0.55) p.setY(i, -0.55 + (y + 0.55) * 0.35); // 底部压平，方便“坐”在地上
   }
   slimeGeo.deleteAttribute('uv');       // 不需要贴图，删掉后才能焊接经线接缝
-  slimeGeo.computeVertexNormals();
+  slimeGeo.deleteAttribute('normal');   // 接缝两侧的重复顶点各自重算的法线不同，会挡住 mergeVertices 合并；先按位置焊接
 }
 const slimeGeoMerged = mergeVertices(slimeGeo, 1e-4);
-slimeGeoMerged.computeVertexNormals();
+slimeGeoMerged.computeVertexNormals();  // 焊接完再重算法线，接缝才是真正平滑的
 slimeGeoMerged.computeBoundingSphere();
 let basePos = Float32Array.from(slimeGeoMerged.attributes.position.array);
 let baseNor = Float32Array.from(slimeGeoMerged.attributes.normal.array);
