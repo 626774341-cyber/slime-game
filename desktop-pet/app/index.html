@@ -32,6 +32,7 @@
   #nightBtn { top: 18px; right: 72px; animation: drop .8s .15s ease both; }
   #weatherBtn { top: 18px; right: 126px; animation: drop .8s .2s ease both; }
   #photoBtn { top: 18px; right: 180px; animation: drop .8s .25s ease both; }
+  #autoBtn { top: 18px; right: 234px; animation: drop .8s .3s ease both; }
   .iconbtn:hover { background: rgba(255,255,255,.92); }
   .card { transition: opacity .4s ease; }
   /* 拍照模式：隐藏所有界面（相机按钮除外） */
@@ -116,7 +117,8 @@
   <p style="margin-top:4px;font-size:11px;">当前版本 <a href="https://github.com/626774341-cyber/slime-game/releases" target="_blank" rel="noopener" style="color:#2c4a66;text-decoration:underline;">v2.9 · 点看更新日志</a></p>
 </div>
 <div id="photoBtn" class="card iconbtn" title="拍照模式（隐藏界面 + 保存快照）">📷</div>
-<div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☔</div>
+<div id="autoBtn" class="card iconbtn" title="自动昼夜 & 天气：开着（点击暂停）">⏰</div>
+<div id="weatherBtn" class="card iconbtn" title="天气：晴 → 雨 → 雪">☀️</div>
 <div id="nightBtn" class="card iconbtn" title="昼夜切换">🌙</div>
 <div id="mute" class="card iconbtn" title="切换音效">🔊</div>
 
@@ -127,6 +129,7 @@
   <span>🎯 点地跳过去</span>
   <span>⌨️ 空格大跳 · B 跳舞</span>
   <span>🔄 拖空白转视角 · 🔍 缩放</span>
+  <span>⏰ 天气时间自动变化</span>
 </div>
 
 <div id="moodCard" class="card" title="史莱姆的心情">
@@ -185,6 +188,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 
 /* ================= 小工具 ================= */
 const { clamp, lerp } = THREE.MathUtils;
@@ -531,17 +535,78 @@ function pickWaypoint(p, target) {
 // 天上的云（缓慢漂移）
 const clouds = [];
 const cloudMats = [];
+const _cloudNdc = new THREE.Vector3();
+// 云朵淡出方案：4 个云苞烘焙成"并集 + 低频蓬松起伏"的单一连续外壳（marching cubes）。
+// 半透明时只有这一张壳参与混合：立体鼓包保留，也不会显出内部球面；
+// 烘焙异常时退回"合并球体 + alphaHash"兜底（不透明渲染，同样只显示最外层）
+function smax(a, b, k) {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.max(a, b) + h * h * k * 0.25;
+}
+const CLOUD_LOBES = [[0, 0, 0, 0.55], [-0.62, -0.08, 0.12, 0.4], [0.6, -0.05, -0.1, 0.45], [0.15, 0.18, -0.15, 0.32]];
+function makeCloudGeometry() {
+  try {
+    const N = 64, HALF = N / 2, W = 1.7, K = 0.02, NOISE = 0.15;
+    const mc = new MarchingCubes(N, matCloud, false, false, 200000);
+    mc.isolation = 0;
+    mc.reset();
+    const L = CLOUD_LOBES.map(([x, y, z, r]) => ({ x: x / W, y: y / W, z: z / W, r2: r * r }));
+    const f = mc.field, size = mc.size, size2 = mc.size2;
+    let i = 0;
+    for (let z = 0; z < size; z++) {
+      const wz = (z - HALF) / HALF * W;
+      for (let y = 0; y < size; y++) {
+        const wy = (y - HALF) / HALF * W;
+        for (let x = 0; x < size; x++) {
+          const wx = (x - HALF) / HALF * W;
+          let v = -1e9;
+          for (const b of L) {
+            const dx = wx - b.x, dy = wy - b.y, dz = wz - b.z;
+            v = smax(v, b.r2 - (dx * dx + dy * dy + dz * dz), K);
+          }
+          // 低频蓬松起伏：给外壳表面云苞般的立体感（想更强/更弱只调 NOISE，0.3 接近爆米花）
+          v += NOISE * (Math.sin(9.2 * wx + 1.3) * Math.sin(8.1 * wy + 4.0)
+                      + Math.sin(7.4 * wz + 2.2) * Math.sin(10.3 * wx + 0.8)
+                      + Math.sin(8.6 * wy + 5.1) * Math.sin(7.9 * wz + 3.3)) / 3;
+          f[i++] = v;
+        }
+      }
+    }
+    mc.update();
+    if (!mc.count) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(mc.positionArray.slice(0, mc.count * 3), 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(mc.normalArray.slice(0, mc.count * 3), 3));
+    geo.center();
+    geo.computeBoundingBox();
+    const sz = new THREE.Vector3();
+    geo.boundingBox.getSize(sz);
+    const k = 2.15 / sz.x;
+    geo.scale(k, k * 0.75, k);   // 压扁，保持云的扁圆造型
+    return geo;
+  } catch (e) { return null; }
+}
+const cloudShellGeo = makeCloudGeometry();
 function makeCloud() {
   const g = new THREE.Group();
-  const mat = matCloud.clone();   // 每朵云独立材质，供边缘淡入淡出单独调透明度
+  const mat = matCloud.clone();   // 每朵云独立材质，供边缘淡出单独调透明度
   mat.transparent = true;
+  mat.depthWrite = false;
   cloudMats.push(mat);
-  [[0, 0, 0, 0.55], [-0.62, -0.08, 0.12, 0.4], [0.6, -0.05, -0.1, 0.45], [0.15, 0.18, -0.15, 0.32]]
-    .forEach(([x, y, z, r]) => {
-      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12), mat);
-      p.position.set(x, y, z); p.scale.y = 0.75;
-      g.add(p);
+  if (cloudShellGeo) {
+    g.add(new THREE.Mesh(cloudShellGeo, mat));
+  } else {
+    mat.alphaHash = true;         // 不透明渲染 + 抖动溶解，任何透明度下都只露出最外层
+    mat.transparent = false;
+    const geos = CLOUD_LOBES.map(([x, y, z, r]) => {
+      const geo = new THREE.SphereGeometry(r, 14, 12);
+      geo.scale(1, 0.75, 1);
+      geo.translate(x, y, z);
+      return geo;
     });
+    g.add(new THREE.Mesh(mergeGeometries(geos), mat));
+    geos.forEach(geo => geo.dispose());
+  }
   g.userData.mat = mat;
   return g;
 }
@@ -552,6 +617,51 @@ function makeCloud() {
   clouds.push(c);
   scene.add(c);
 });
+
+// 窗口边缘淡出参数：hBand/vBand 是 NDC 距离（1 = 窗口边框），云心进入该范围开始变淡。
+// 垂直带宽必须小：拉远视角后云都挂在画面上部，垂直带宽大了会让云长期半透明、看不出漂移渐变
+const CLOUD_FADE = { hBand: 0.35, vBand: 0.12, wrapBand: 3 };
+
+// 演示页调好的参数会写进 __cloud_params.json，这里自动套用；文件不存在就用默认值
+fetch('__cloud_params.json').then(r => r.ok ? r.json() : null).then(p => {
+  if (p) for (const k of ['hBand', 'vBand', 'wrapBand']) if (typeof p[k] === 'number') CLOUD_FADE[k] = p[k];
+}).catch(() => {});
+
+// 调试层（地址加 ?cloudbg=1 开启）：橙色画出淡出带，每朵云一个标记实时显示不透明度
+const cloudDebug = initCloudDebug();
+function initCloudDebug() {
+  if (!new URLSearchParams(location.search).has('cloudbg')) return null;
+  const W = 'position:fixed;z-index:40;pointer-events:none;';
+  const mk = css => { const d = document.createElement('div'); d.style.cssText = css; document.body.appendChild(d); return d; };
+  const tint = 'rgba(255,140,0,.25)';
+  const bandL = mk(`${W}top:0;bottom:0;left:0;background:linear-gradient(90deg,${tint},transparent)`);
+  const bandR = mk(`${W}top:0;bottom:0;right:0;background:linear-gradient(270deg,${tint},transparent)`);
+  const bandT = mk(`${W}left:0;right:0;top:0;background:linear-gradient(180deg,${tint},transparent)`);
+  mk(`${W}left:12px;bottom:12px;font:12px/1.5 system-ui;color:#222;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:8px`)
+    .textContent = '云边缘调试：云位置→相机投影→NDC(−1..1)，±1 即窗口边框；橙色=淡出带；去掉地址参数即可关闭';
+  const sizeBands = () => {
+    bandL.style.width = bandR.style.width = (CLOUD_FADE.hBand / 2 * 100) + '%';
+    bandT.style.height = (CLOUD_FADE.vBand / 2 * 100) + '%';
+  };
+  sizeBands();
+  addEventListener('resize', sizeBands);
+  const markers = clouds.map(() => {
+    const d = mk(`${W}transform:translate(-50%,-50%);text-align:center;display:none`);
+    d.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:#e25822;border:2px solid #fff;margin:0 auto"></div>'
+                + '<div class="tag" style="margin-top:3px;font:11px system-ui;background:rgba(0,0,0,.55);color:#fff;padding:1px 6px;border-radius:6px;white-space:nowrap"></div>';
+    return d;
+  });
+  return {
+    update(c, ndc, behind, op) {
+      const i = clouds.indexOf(c), m = markers[i];
+      if (behind) { m.style.display = 'none'; return; }
+      m.style.display = 'block';
+      m.style.left = THREE.MathUtils.clamp((ndc.x * .5 + .5) * innerWidth, 16, innerWidth - 16) + 'px';
+      m.style.top = THREE.MathUtils.clamp((-ndc.y * .5 + .5) * innerHeight, 16, innerHeight - 16) + 'px';
+      m.querySelector('.tag').textContent = `云${i} α ${(op * 100) | 0}%`;
+    }
+  };
+}
 
 // 夜空：星星 + 月亮
 const starsMat = new THREE.PointsMaterial({
@@ -620,6 +730,62 @@ makeButterfly(0xffd45e, FLOWER_SPOTS[2][0], FLOWER_SPOTS[2][1]);
 
 /* ================= 天气系统（晴 / 雨 / 雪） ================= */
 const weather = { mode: 0, rainAmt: 0, snowAmt: 0, rippleT: 0 };
+// 天气的唯一显示口径：mode 0=晴 1=雨 2=雪（按钮图标 / 提示语都从这里取）
+const WEATHER_META = [
+  { icon: '☀️', toast: '☀️ 天晴啦！' },
+  { icon: '☔', toast: '☔ 下雨啦！史莱姆最喜欢雨天～' },
+  { icon: '❄️', toast: '❄️ 下雪了，好安静呀…' },
+];
+function setWeatherMode(m) {
+  weather.mode = ((m % 3) + 3) % 3;
+  const btn = document.getElementById('weatherBtn');
+  if (btn) btn.textContent = WEATHER_META[weather.mode].icon;
+}
+
+/* ================= ⏰ 自动昼夜 & 天气（放着不动，世界自己活起来） ================= */
+const autoCycle = {
+  on: true,
+  hour: 16,          // 游戏内时刻（0–24，16 = 下午，大约 30 秒后天黑）
+  weatherT: 30,      // 距离下一次自动变天（秒）
+  wasNight: null,
+};
+const DAY_MINUTES = 6;       // 游戏里一昼夜 = 现实 6 分钟（1 现实秒 = 4 游戏分钟），演示节奏
+let autoWall = Date.now();   // 用真实时钟推进：切后台 / 待机回来会自动把时间补上
+const isNightHour = (h) => h < 6 || h >= 18;
+function setAutoCycle(on) {
+  autoCycle.on = on;
+  autoWall = Date.now();
+  const btn = document.getElementById('autoBtn');
+  if (btn) {
+    btn.textContent = on ? '⏰' : '⏸️';
+    btn.title = on ? '自动昼夜 & 天气：开着（点击暂停）' : '自动昼夜 & 天气：已暂停（点击开启）';
+  }
+  toast(on ? '⏰ 自动模式：时间天气会自己变化啦！' : '⏸️ 已暂停自动变化，都听你的～');
+}
+function updateAutoCycle() {
+  if (!autoCycle.on) return;
+  const now = Date.now();
+  const realDt = Math.min((now - autoWall) / 1000, 600);  // 待机多久都能补上，单次最多按 10 分钟算
+  autoWall = now;
+  autoCycle.hour = (autoCycle.hour + realDt * (24 / (DAY_MINUTES * 60))) % 24;
+  const night = isNightHour(autoCycle.hour);
+  if (autoCycle.wasNight !== null && night !== autoCycle.wasNight) {
+    const nb = document.getElementById('nightBtn');
+    if (nb) nb.textContent = night ? '☀️' : '🌙';
+    toast(night ? '🌙 天色暗下来了，史莱姆困了…' : '☀️ 天亮啦！');
+  }
+  autoCycle.wasNight = night;
+  dnState.target = night ? 1 : 0;
+  autoCycle.weatherT -= realDt;
+  if (autoCycle.weatherT <= 0) {
+    const pick = [0, 0, 0, 1, 1, 2][Math.floor(Math.random() * 6)];  // 晴多、雨中、雪少
+    if (pick !== weather.mode) {
+      setWeatherMode(pick);
+      toast(WEATHER_META[pick].toast);
+    }
+    autoCycle.weatherT = 30 + Math.random() * 30;  // 之后每 0.5–1 分钟变一次天
+  }
+}
 const RAIN_N = 240;
 const rainPos = new Float32Array(RAIN_N * 6);
 const rainDrops = [];
@@ -3124,23 +3290,40 @@ document.getElementById('paletteBtn').addEventListener('click', () => {
   ensureAudio();
   document.getElementById('palettePanel').classList.toggle('open');
 });
-// 天气切换：晴 → 雨 → 雪
+// 天气切换：晴 → 雨 → 雪（自动模式下手动的选择会保留一整轮，再继续自动变）
 const weatherBtn = document.getElementById('weatherBtn');
 weatherBtn.addEventListener('click', () => {
   ensureAudio();
-  weather.mode = (weather.mode + 1) % 3;
-  weatherBtn.textContent = ['☔', '❄️', '☀️'][weather.mode];
-  toast(['☔ 下雨啦！史莱姆最喜欢雨天～', '❄️ 下雪了，好安静呀…', '☀️ 天晴啦！'][weather.mode]);
+  setWeatherMode(weather.mode + 1);
+  toast(WEATHER_META[weather.mode].toast);
+  if (autoCycle.on) autoCycle.weatherT = 30 + Math.random() * 30;
   blip(500, 760, 0.12, 0.08);
 });
 // 昼夜切换（v2.1 修复：此监听器在早前版本覆写中丢失，导致 🌙 点击无反应）
+// 自动模式下点 🌙：直接跳到对应的半天，之后时间继续自己走
 const nightBtn = document.getElementById('nightBtn');
 nightBtn.addEventListener('click', () => {
   ensureAudio();
-  dnState.target = dnState.target === 0 ? 1 : 0;
-  nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
-  toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  if (autoCycle.on) {
+    const toNight = dnState.target === 0;
+    autoCycle.hour = toNight ? 20 : 9;
+    autoCycle.wasNight = toNight;
+    dnState.target = toNight ? 1 : 0;
+    nightBtn.textContent = toNight ? '☀️' : '🌙';
+    toast(toNight ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  } else {
+    dnState.target = dnState.target === 0 ? 1 : 0;
+    nightBtn.textContent = dnState.target === 1 ? '☀️' : '🌙';
+    toast(dnState.target === 1 ? '🌙 夜幕降临，史莱姆困了…' : '☀️ 天亮啦！');
+  }
   blip(dnState.target === 1 ? 400 : 600, dnState.target === 1 ? 180 : 1000, 0.25, 0.1);
+});
+// ⏰ 自动昼夜 & 天气开关
+const autoBtn = document.getElementById('autoBtn');
+autoBtn.addEventListener('click', () => {
+  ensureAudio();
+  setAutoCycle(!autoCycle.on);
+  blip(autoCycle.on ? 600 : 400, autoCycle.on ? 1000 : 180, 0.2, 0.08);
 });
 // 拍照模式：隐藏界面 + 尝试保存快照
 const photoBtn = document.getElementById('photoBtn');
@@ -3205,15 +3388,28 @@ function tickBody() {
   updateFloatPool(heartPool, dt);
   updateFloatPool(notePool, dt);
   updateFloatPool(zzzPool, dt);
+  updateAutoCycle();
   applyDayNight(dt);
   updateMoodUI();
 
   for (const c of clouds) {
     c.position.x += c.userData.v * dt;
     if (c.position.x > 15) c.position.x = -15;
-    // 飘出窗口边缘时平滑淡出，绕回另一侧后平滑淡入
-    const edge = Math.min(15 - c.position.x, c.position.x + 15);
-    c.userData.mat.opacity = THREE.MathUtils.smoothstep(edge, 0, 3);
+    // 窗口边缘淡出：把云位置投影成 NDC（±1 就是窗口边框），云心距左右/上边缘
+    // 小于对应带宽时平滑淡出，从边缘外飘入时对称渐显；
+    // 水平/垂直带宽分开（原因见 CLOUD_FADE 注释），再乘世界回绕边界淡出兜底
+    _cloudNdc.copy(c.position).applyMatrix4(camera.matrixWorldInverse);
+    const behind = _cloudNdc.z > -0.5;    // 云在相机背后：直接隐藏
+    let op = 0;
+    if (!behind) {
+      _cloudNdc.applyMatrix4(camera.projectionMatrix);
+      const worldEdge = Math.min(15 - c.position.x, c.position.x + 15);
+      op = THREE.MathUtils.smoothstep(1 - Math.abs(_cloudNdc.x), 0, CLOUD_FADE.hBand)
+         * THREE.MathUtils.smoothstep(1 - Math.abs(_cloudNdc.y), 0, CLOUD_FADE.vBand)
+         * THREE.MathUtils.smoothstep(worldEdge, 0, CLOUD_FADE.wrapBand);
+    }
+    c.userData.mat.opacity = op;
+    if (cloudDebug) cloudDebug.update(c, _cloudNdc, behind, op);
   }
 
   // 悬停光标提示
@@ -3269,6 +3465,8 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
         colorIdx: slimeColorIdx,
         weatherMode: weather.mode,
         night: dnState.target,
+        autoOn: autoCycle.on,
+        gameHour: Math.round(autoCycle.hour * 10) / 10,
         muted: muted,
         rainbow: slimeRainbow,
         mood: Math.round(mood.happy),
@@ -3303,15 +3501,26 @@ window.__petToggleMap = () => { world.visible = !world.visible; return world.vis
       } else if (s.rainbow) {
         slimeRainbow = true;      // 兼容只存了 rainbow 的旧存档
       }
-      if (s.weatherMode !== undefined) {
-        weather.mode = s.weatherMode;
-        const wb = document.getElementById('weatherBtn');
-        if (wb) wb.textContent = ['☔','❄️','☀️'][s.weatherMode];
-      }
+      if (s.weatherMode !== undefined) setWeatherMode(s.weatherMode);
       if (s.night) {
         dnState.target = 1;
         const nb = document.getElementById('nightBtn');
         if (nb) nb.textContent = '☀️';
+      }
+      if (s.autoOn !== undefined) {
+        autoCycle.on = s.autoOn;
+        const ab = document.getElementById('autoBtn');
+        if (ab) {
+          ab.textContent = autoCycle.on ? '⏰' : '⏸️';
+          ab.title = autoCycle.on ? '自动昼夜 & 天气：开着（点击暂停）' : '自动昼夜 & 天气：已暂停（点击开启）';
+        }
+      }
+      if (s.gameHour !== undefined) autoCycle.hour = s.gameHour;
+      autoCycle.wasNight = isNightHour(autoCycle.hour);
+      if (autoCycle.on) {
+        dnState.target = autoCycle.wasNight ? 1 : 0;
+        const nb2 = document.getElementById('nightBtn');
+        if (nb2) nb2.textContent = autoCycle.wasNight ? '☀️' : '🌙';
       }
       if (s.muted) {
         muted = true;
