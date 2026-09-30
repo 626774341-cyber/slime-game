@@ -176,7 +176,7 @@
   <button class="card tool" id="danceBtn" title="跳舞 (B 键)">💃</button>
   <button class="card tool" id="paletteBtn" title="换个颜色">🎨</button>
   <button class="card tool" id="hatBtn" title="换帽子">🎩</button>
-  <button class="card tool" id="stickerBtn" title="贴贴纸：每点一次贴一张（不重叠）；点身上的贴纸可撕下">🩹</button>
+  <button class="card tool" id="stickerBtn" title="贴贴纸：每点一次贴一张（不重叠）；点贴纸或按住拖拽可撕下">🩹</button>
   <button class="card tool" id="babyBtn" title="史莱姆宝宝（最多3只）">🥚</button>
   <button class="card tool" id="ballBtn" title="玩具球：史莱姆会自己追着踢">🏀</button>
   <button class="card tool" id="feedBtn" title="投喂苹果">🍎</button>
@@ -1120,7 +1120,8 @@ function sampleStickerSpot(angRad) {
     .applyAxisAngle(new THREE.Vector3(0, 1, 0), -slime.yaw);
   const faceSpots = stickerFaceSpots();
   const clearTop = Math.cos(angRad + 0.42);   // 顶部给帽子留位置
-  const clearBot = -Math.cos(angRad + 0.5);   // 底部压平区不贴（径向投影在平底上会不稳定）
+  // 底盘附近不贴：太低的贴纸视角斜、看不清也点不准，很难撕掉（在压平底避让的基础上再抬高一段）
+  const clearBot = Math.max(-Math.cos(angRad + 0.5), -0.2);
   // 该方向到“已占区域”（五官 / 帽子 / 底部 / 已有贴纸）的空隙（弧度），≥ angRad 即不重叠
   const clearance = (dir) => {
     let c = Math.acos(clamp(dir.y, -1, 1)) - 0.42;
@@ -1221,6 +1222,7 @@ function buildStickerSurface(st) {
     st.pos0[i * 3 + 1] = b[i * 3 + 1] + n[i * 3 + 1] * lift[i];
     st.pos0[i * 3 + 2] = b[i * 3 + 2] + n[i * 3 + 2] * lift[i];
   }
+  st.center = new THREE.Vector3(b[0], b[1], b[2]);      // 撕贴纸的锚点：中心顶点（slimeMesh 本地空间）
   return true;
 }
 function stickerMeshFrom(st, mat) {
@@ -1325,6 +1327,12 @@ function updateStickers(dt, t) {
       st.popT = Math.min(1, st.popT + dt * 3.4);
       const p = st.popT - 1;
       st.mesh.scale.setScalar(Math.max(0.001, 1 + 2.70158 * p * p * p + 1.70158 * p * p));
+    }
+    if (st.peeling && st.pull) {                          // 撕动中：贴纸跟手
+      st.mesh.position.copy(st.pull);
+    } else if (st.pull) {                                 // 没撕下来：果冻回弹把贴纸带回原位
+      st.mesh.position.multiplyScalar(Math.max(0, 1 - dt * 9));
+      if (st.mesh.position.lengthSq() < 0.0009) { st.mesh.position.set(0, 0, 0); st.pull = null; }
     }
   }
 }
@@ -2367,8 +2375,11 @@ const ndc = new THREE.Vector2(-10, -10);
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);        // y = 0
 const dragPlane   = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.9);     // y = 0.9
 const eyePlane    = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.6);     // y = 0.6
+const peelPlane   = new THREE.Plane();                                     // 撕贴纸：按下时定住的“面向相机平面”
 const hitSphere   = new THREE.Sphere(new THREE.Vector3(), 1.05);
 const _v = new THREE.Vector3();
+const _pv = new THREE.Vector3();
+const _dir = new THREE.Vector3();
 
 const drag = { active: false, moved: false, kind: 'none', obj: null, x: 0, y: 0, t0: 0, id: -1 };
 
@@ -2377,6 +2388,8 @@ function updateNdc(e) {
   ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
 }
 function pickTarget() {
+  const st = stickerAtPointer();          // 贴纸优先：贴纸贴在史莱姆表面，先于身体命中
+  if (st) return { kind: 'sticker', obj: st };
   raycaster.setFromCamera(ndc, camera);
   hitSphere.radius = 1.05;
   hitSphere.center.set(slime.pos.x, slime.pos.y + 0.72, slime.pos.z);
@@ -2414,6 +2427,10 @@ window.addEventListener('pointerdown', (e) => {
   drag.active = true; drag.moved = false;
   drag.kind = hit.kind; drag.obj = hit.obj;
   drag.x = e.clientX; drag.y = e.clientY; drag.t0 = performance.now(); drag.id = e.pointerId;
+  if (hit.kind === 'sticker') {           // 撕贴纸：以按下瞬间贴纸所在位置定一块“面向相机的平面”，拖动时指针在这块平面上拉扯贴纸
+    camera.getWorldDirection(_dir);
+    peelPlane.setFromNormalAndCoplanarPoint(_dir, hit.obj.mesh.getWorldPosition(_pv));
+  }
   if (hit.kind === 'apple') grabApple(hit.obj);
   if (hit.kind === 'ball') grabBall(hit.obj);
   if (hit.kind !== 'none') e.stopPropagation();
@@ -2429,7 +2446,18 @@ window.addEventListener('pointermove', (e) => {
     if (drag.kind === 'slime' && slime.mode !== 'grab') grabSlime();
     if (drag.kind === 'baby' && drag.obj && drag.obj.mode !== 'grab') grabBaby(drag.obj);
   }
-  if (drag.kind === 'slime' && slime.mode === 'grab') {
+  if (drag.kind === 'sticker' && drag.obj) {
+    // 撕贴纸：贴纸被指针拉起（沿按下时定好的 peelPlane 移动，避免拖动中平面跟着跑导致飘移）
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(peelPlane, _v)) {
+      const st = drag.obj;
+      slimeMesh.worldToLocal(_v);
+      if (!st.pull) st.pull = new THREE.Vector3();
+      st.pull.copy(_v).sub(st.center);
+      if (st.pull.length() > 0.62) st.pull.setLength(0.62);   // 别拉出身体太远
+      st.peeling = true;
+    }
+  } else if (drag.kind === 'slime' && slime.mode === 'grab') {
     raycaster.setFromCamera(ndc, camera);
     if (raycaster.ray.intersectPlane(dragPlane, _v)) {
       slime.grabTarget.set(clamp(_v.x, -BOUND, BOUND), 0.95, clamp(_v.z, -BOUND, BOUND));
@@ -2463,6 +2491,14 @@ window.addEventListener('pointerup', (e) => {
       else releaseSlime();
     } else if (!drag.moved && quick) {
       pokeSlime();
+    }
+  } else if (k === 'sticker' && drag.obj) {
+    // 点一下直接撕掉；拖出去超过贴纸半径一半也算撕下来，否则弹回原位
+    const st = drag.obj;
+    st.peeling = false;
+    if (stickers.includes(st)) {
+      const tR = 0.92 * Math.sin(st.angRad);
+      if ((!drag.moved && quick) || st.mesh.position.length() > tR * 0.55) peelSticker(st);
     }
   } else if (k === 'baby' && drag.obj) {
     const b = drag.obj;

@@ -1167,7 +1167,8 @@ function sampleStickerSpot(angRad) {
     .applyAxisAngle(new THREE.Vector3(0, 1, 0), -slime.yaw);
   const faceSpots = stickerFaceSpots();
   const clearTop = Math.cos(angRad + 0.42);   // 顶部给帽子留位置
-  const clearBot = -Math.cos(angRad + 0.5);   // 底部压平区不贴（径向投影在平底上会不稳定）
+  // 底盘附近不贴：太低的贴纸视角斜、看不清也点不准，很难撕掉（在压平底避让的基础上再抬高一段）
+  const clearBot = Math.max(-Math.cos(angRad + 0.5), -0.2);
   const clearance = (dir) => stickerClearance(dir, faceSpots);
   const regions = [0.45, 0.15, -0.25];        // 相机正面 → 侧面 → 背面也行
   let best = null, bestC = -Infinity;

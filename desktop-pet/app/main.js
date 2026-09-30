@@ -419,6 +419,7 @@ function injectPetUI() {
   };
 
   // —— 主渲染循环 ——
+  let last = performance.now();
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
     const mode = pet.weather ? pet.weather.mode : 0;
